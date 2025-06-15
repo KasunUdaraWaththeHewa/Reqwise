@@ -1,5 +1,3 @@
----
-
 ## 🚀 Core Features (MVP)
 
 These form the base product, similar to Postman:
@@ -23,8 +21,6 @@ These form the base product, similar to Postman:
 * Save requests with folders and tags
 * Clone, rename, or reorder requests
 * Notes for each request
-
----
 
 ## ⚙️ Advanced Features (Go beyond Postman)
 
@@ -57,8 +53,6 @@ These make your app developer-centric and efficient:
 * Allow user scripts/plugins (e.g., generate auth tokens dynamically)
 * Plugin marketplace (later)
 
----
-
 ## 📊 UX & Productivity Features
 
 These focus on speed, clarity, and local-first principles:
@@ -82,9 +76,7 @@ These focus on speed, clarity, and local-first principles:
 
 * Dark/light mode, high contrast mode
 * Font size adjustment, tab view customization
-
----
-
+* 
 ## 🔐 Developer Quality-of-Life
 
 Focus on real-world dev use cases:
@@ -103,8 +95,6 @@ Focus on real-world dev use cases:
 ### 🧵 Concurrent Requests
 
 * Run multiple requests in parallel (like load testing light)
-
----
 
 ## 🔥 Bonus / “Better than Postman” Ideas
 
@@ -127,8 +117,6 @@ Make it unique and powerful:
 * Save per-project settings, collections, environments, and custom scripts
 * Switch context quickly
 
----
-
 ## 🧱 Tech Stack Suggestion (Electron + React)
 
 * UI: React + Tailwind / Material UI
@@ -136,8 +124,6 @@ Make it unique and powerful:
 * Storage: SQLite (better) or IndexedDB
 * Code Editor: Monaco Editor (for JSON input, test scripts)
 * Backend: Node.js or Rust via Tauri (for local fs/network access)
-
----
 
 Let me know if you'd like:
 
