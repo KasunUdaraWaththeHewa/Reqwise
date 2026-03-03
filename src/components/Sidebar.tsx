@@ -110,7 +110,7 @@ export function Sidebar() {
   };
 
   return (
-    <div className="w-80 bg-sidebar border-r border-sidebar-border flex flex-col h-full">
+    <div className="h-full bg-sidebar border-r border-sidebar-border flex flex-col">
       <div className="p-4 border-b border-sidebar-border">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-sidebar-foreground">Collections</h2>
