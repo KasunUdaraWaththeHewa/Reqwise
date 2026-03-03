@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useApiStore } from '../store/apiStore';
 import { formatTime, formatBytes, getStatusColor } from '../lib/utils';
@@ -6,7 +5,7 @@ import { cn } from '../lib/utils';
 
 export function StatusBar() {
   const { activeTab, responses } = useApiStore();
-  
+
   const response = activeTab ? responses[activeTab] : null;
 
   return (
@@ -14,25 +13,19 @@ export function StatusBar() {
       <div className="flex items-center space-x-4">
         {response ? (
           <>
-            <span className={cn('font-medium', getStatusColor(response.status))}>
-              {response.status} {response.statusText}
-            </span>
-            <span className="text-muted-foreground">
-              {formatTime(response.time)}
-            </span>
-            <span className="text-muted-foreground">
-              {formatBytes(response.size)}
-            </span>
+            <span className={cn('font-medium', getStatusColor(response.status))}>{response.status} {response.statusText}</span>
+            <span className="text-muted-foreground">{formatTime(response.time)}</span>
+            <span className="text-muted-foreground">{formatBytes(response.size)}</span>
           </>
         ) : (
           <span className="text-muted-foreground">Ready</span>
         )}
       </div>
-      
-      <div className="flex items-center space-x-4">
-        <span className="text-muted-foreground">
-          Press <kbd className="bg-muted px-1 rounded">Cmd+K</kbd> to search
-        </span>
+
+      <div className="flex items-center space-x-4 text-muted-foreground">
+        <span>⌘/Ctrl+K Search</span>
+        <span>⌘/Ctrl+Enter Send</span>
+        <span>⌘/Ctrl+S Save</span>
       </div>
     </div>
   );

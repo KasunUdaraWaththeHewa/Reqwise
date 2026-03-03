@@ -1,5 +1,6 @@
 
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export interface Request {
   id: string;
@@ -31,6 +32,16 @@ export interface Response {
   size: number;
 }
 
+export interface RequestHistoryEntry {
+  id: string;
+  requestId: string;
+  method: Request['method'];
+  url: string;
+  status: number;
+  time: number;
+  createdAt: number;
+}
+
 interface Tab {
   id: string;
   requestId: string;
@@ -43,6 +54,7 @@ interface ApiState {
   activeTab: string | null;
   tabs: Tab[];
   responses: Record<string, Response>;
+  requestHistory: RequestHistoryEntry[];
   searchQuery: string;
   isSearchOpen: boolean;
   
@@ -61,12 +73,14 @@ interface ApiState {
   setActiveTab: (tabId: string) => void;
   
   setResponse: (requestId: string, response: Response) => void;
+  clearHistory: () => void;
   
   setSearchQuery: (query: string) => void;
   toggleSearch: () => void;
+  setSearchOpen: (open: boolean) => void;
 }
 
-export const useApiStore = create<ApiState>((set, get) => ({
+export const useApiStore = create<ApiState>()(persist((set, get) => ({
   collections: [
     {
       id: 'default',
@@ -97,6 +111,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
     { id: 'default-request', requestId: 'default-request', isModified: false },
   ],
   responses: {},
+  requestHistory: [],
   searchQuery: '',
   isSearchOpen: false,
 
@@ -216,12 +231,35 @@ export const useApiStore = create<ApiState>((set, get) => ({
   },
 
   setResponse: (requestId, response) => {
+    const request = get().requests.find((req) => req.id === requestId);
+
     set((state) => ({
       responses: {
         ...state.responses,
         [requestId]: response,
       },
+      requestHistory: request
+        ? [
+            {
+              id: `history-${Date.now()}`,
+              requestId,
+              method: request.method,
+              url: request.url,
+              status: response.status,
+              time: response.time,
+              createdAt: Date.now(),
+            },
+            ...state.requestHistory,
+          ].slice(0, 50)
+        : state.requestHistory,
+      tabs: state.tabs.map((tab) =>
+        tab.requestId === requestId ? { ...tab, isModified: false } : tab
+      ),
     }));
+  },
+
+  clearHistory: () => {
+    set({ requestHistory: [] });
   },
 
   setSearchQuery: (query) => {
@@ -231,4 +269,18 @@ export const useApiStore = create<ApiState>((set, get) => ({
   toggleSearch: () => {
     set((state) => ({ isSearchOpen: !state.isSearchOpen }));
   },
+
+  setSearchOpen: (open) => {
+    set({ isSearchOpen: open });
+  },
+}), {
+  name: 'reqwise-store',
+  partialize: (state) => ({
+    collections: state.collections,
+    requests: state.requests,
+    tabs: state.tabs,
+    activeTab: state.activeTab,
+    responses: state.responses,
+    requestHistory: state.requestHistory,
+  }),
 }));
