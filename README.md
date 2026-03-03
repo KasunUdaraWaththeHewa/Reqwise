@@ -29,6 +29,11 @@ Reqwise is a local-first API client inspired by Postman, built with React + Vite
   - Configure iterations, concurrency, and delay per request
   - Run parallelized request bursts and review throughput + latency percentiles (P50/P95/P99)
   - Persist load test summary into history for quick comparisons
+- **Scheduled automation**
+  - Configure interval-based request execution with optional max-runs and stop-on-failure behavior
+  - Track schedule run status directly in the request editor
+- **Script generation for testing scenarios**
+  - Generate and copy runnable Node.js fetch scripts from the active request configuration
 - **Response helpers**
   - Copy response body
   - Copy all response headers

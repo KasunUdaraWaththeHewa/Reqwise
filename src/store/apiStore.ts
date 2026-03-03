@@ -68,6 +68,12 @@ export interface Request {
       concurrency: number;
       delayMs: number;
     };
+    automation: {
+      enabled: boolean;
+      intervalMs: number;
+      maxRuns: number;
+      stopOnFailure: boolean;
+    };
   };
   envVars: EnvVariable[];
   tests: TestAssertion[];
@@ -189,6 +195,12 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
           iterations: 10,
           concurrency: 2,
           delayMs: 0,
+        },
+        automation: {
+          enabled: false,
+          intervalMs: 60000,
+          maxRuns: 0,
+          stopOnFailure: false,
         },
       },
       envVars: [],

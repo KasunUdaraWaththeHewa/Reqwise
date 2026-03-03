@@ -57,7 +57,11 @@ export function RequestEditor() {
   } = useApiStore();
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadTesting, setIsLoadTesting] = useState(false);
+  const [isScheduledRunning, setIsScheduledRunning] = useState(false);
+  const [scheduledRuns, setScheduledRuns] = useState(0);
+  const [scriptCopied, setScriptCopied] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const scheduleTimerRef = useRef<number | null>(null);
 
   const activeRequest = activeTab
     ? requests.find((req) => req.id === activeTab)
@@ -65,7 +69,11 @@ export function RequestEditor() {
 
   const requestEnvVars = useMemo(() => activeRequest?.envVars ?? [], [activeRequest?.envVars]);
   const requestTests = useMemo(() => activeRequest?.tests ?? [], [activeRequest?.tests]);
-  const requestSettings = useMemo(() => activeRequest?.settings ?? { timeoutMs: 30000 }, [activeRequest?.settings]);
+  const requestSettings = useMemo(() => activeRequest?.settings ?? {
+    timeoutMs: 30000,
+    loadTest: { iterations: 10, concurrency: 2, delayMs: 0 },
+    automation: { enabled: false, intervalMs: 60000, maxRuns: 0, stopOnFailure: false },
+  }, [activeRequest?.settings]);
 
   const activeCollectionId = useMemo(
     () => collections.find((collection) => collection.requests.includes(activeRequest?.id ?? ''))?.id,
@@ -137,14 +145,14 @@ export function RequestEditor() {
   }, [activeRequest, interpolate, requestSettings.timeoutMs]);
 
   const handleSendRequest = useCallback(async () => {
-    if (!activeRequest) return;
+    if (!activeRequest) return false;
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
     setIsLoading(true);
     try {
       const payload = buildRequestPayload();
-      if (!payload) return;
+      if (!payload) return false;
 
       const response = await httpClient.request({
         ...payload,
@@ -158,6 +166,7 @@ export function RequestEditor() {
         testSummary: summary,
       });
       toast.success('Request sent successfully');
+      return response.status >= 200 && response.status < 400;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       const statusText = typeof error === 'object' && error !== null && 'statusText' in error ? String((error as { statusText?: string }).statusText || 'Network Error') : 'Network Error';
@@ -170,10 +179,13 @@ export function RequestEditor() {
         size: 0,
       });
       toast.error('Request failed');
+      return false;
     } finally {
       setIsLoading(false);
       abortControllerRef.current = null;
     }
+
+    return false;
   }, [activeRequest, buildRequestPayload, requestTests, setResponse]);
 
   useEffect(() => {
@@ -307,6 +319,87 @@ export function RequestEditor() {
     updateField('tests', requestTests.filter((_, i) => i !== index));
   };
 
+
+
+  const generatedScript = useMemo(() => {
+    if (!activeRequest) return '';
+
+    const payload = buildRequestPayload();
+    if (!payload) return '';
+
+    const body = payload.body === undefined
+      ? 'undefined'
+      : typeof payload.body === 'string'
+        ? JSON.stringify(payload.body)
+        : JSON.stringify(payload.body, null, 2);
+
+    return `// Reqwise generated script
+// Request: ${activeRequest.name}
+const fetch = globalThis.fetch;
+
+const requestConfig = {
+  method: '${payload.method}',
+  url: ${JSON.stringify(payload.url)},
+  headers: ${JSON.stringify(payload.headers, null, 2)},
+  params: ${JSON.stringify(payload.params, null, 2)},
+  body: ${body},
+};
+
+function buildUrl(url, params) {
+  const finalUrl = new URL(url);
+  Object.entries(params || {}).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && String(v).length > 0) {
+      finalUrl.searchParams.append(k, String(v));
+    }
+  });
+  return finalUrl.toString();
+}
+
+async function runScenario(iterations = 1, delayMs = 0) {
+  for (let i = 0; i < iterations; i += 1) {
+    const response = await fetch(buildUrl(requestConfig.url, requestConfig.params), {
+      method: requestConfig.method,
+      headers: requestConfig.headers,
+      body: requestConfig.body && ['POST', 'PUT', 'PATCH'].includes(requestConfig.method)
+        ? (typeof requestConfig.body === 'string' ? requestConfig.body : JSON.stringify(requestConfig.body))
+        : undefined,
+    });
+
+    const text = await response.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
+    }
+
+    console.log('Run', i + 1, 'status=', response.status, 'body=', data);
+
+    if (delayMs > 0 && i < iterations - 1) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
+runScenario(
+  ${requestSettings.automation?.maxRuns && requestSettings.automation.maxRuns > 0 ? requestSettings.automation.maxRuns : 1},
+  ${requestSettings.automation?.intervalMs ?? 60000}
+);
+`;
+  }, [activeRequest, buildRequestPayload, requestSettings.automation?.intervalMs, requestSettings.automation?.maxRuns]);
+
+  const copyGeneratedScript = async () => {
+    if (!generatedScript) return;
+    try {
+      await navigator.clipboard.writeText(generatedScript);
+      setScriptCopied(true);
+      setTimeout(() => setScriptCopied(false), 1500);
+      toast.success('Generated script copied');
+    } catch {
+      toast.error('Unable to copy script');
+    }
+  };
+
   const handleRunLoadTest = async () => {
     if (!activeRequest || isLoadTesting) return;
 
@@ -314,7 +407,7 @@ export function RequestEditor() {
     try {
       const summary = await runLoadTest(activeRequest, interpolate);
       const payload = buildRequestPayload();
-      if (!payload) return;
+      if (!payload) return false;
 
       const latestResponse = await httpClient.request(payload);
       const { results, summary: testSummary } = runAssertions(latestResponse, requestTests);
@@ -337,6 +430,77 @@ export function RequestEditor() {
     abortControllerRef.current?.abort();
     toast.message('Request cancelled');
   };
+
+  useEffect(() => {
+    if (scheduleTimerRef.current) {
+      window.clearInterval(scheduleTimerRef.current);
+      scheduleTimerRef.current = null;
+    }
+
+    if (!activeRequest || !requestSettings.automation?.enabled) {
+      setIsScheduledRunning(false);
+      setScheduledRuns(0);
+      return;
+    }
+
+    const intervalMs = Math.max(1000, requestSettings.automation.intervalMs || 60000);
+    const maxRuns = Math.max(0, requestSettings.automation.maxRuns || 0);
+    setIsScheduledRunning(true);
+    setScheduledRuns(0);
+
+    const run = async () => {
+      if (isLoading || isLoadTesting) return;
+      const passed = await handleSendRequest();
+      if (requestSettings.automation?.stopOnFailure && !passed) {
+        if (scheduleTimerRef.current) {
+          window.clearInterval(scheduleTimerRef.current);
+          scheduleTimerRef.current = null;
+        }
+        setIsScheduledRunning(false);
+        if (activeRequest?.id) {
+          updateRequest(activeRequest.id, {
+            settings: {
+              ...requestSettings,
+              automation: { ...requestSettings.automation, enabled: false },
+            },
+          });
+        }
+        toast.error('Scheduled automation stopped due to failure');
+        return;
+      }
+      setScheduledRuns((prev) => {
+        const next = prev + 1;
+        if (maxRuns > 0 && next >= maxRuns) {
+          if (scheduleTimerRef.current) {
+            window.clearInterval(scheduleTimerRef.current);
+            scheduleTimerRef.current = null;
+          }
+          setIsScheduledRunning(false);
+          if (activeRequest?.id) {
+            updateRequest(activeRequest.id, {
+              settings: {
+                ...requestSettings,
+                automation: { ...requestSettings.automation, enabled: false },
+              },
+            });
+          }
+          toast.message('Scheduled automation completed');
+        }
+        return next;
+      });
+    };
+
+    run();
+    scheduleTimerRef.current = window.setInterval(run, intervalMs);
+
+    return () => {
+      if (scheduleTimerRef.current) {
+        window.clearInterval(scheduleTimerRef.current);
+        scheduleTimerRef.current = null;
+      }
+      setIsScheduledRunning(false);
+    };
+  }, [activeRequest?.id, handleSendRequest, isLoadTesting, isLoading, requestSettings, updateRequest]);
 
   if (!activeRequest) {
     return <div className="flex-1 flex items-center justify-center bg-background text-muted-foreground">No request selected</div>;
@@ -411,7 +575,7 @@ export function RequestEditor() {
 
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="params" className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 xl:grid-cols-7 bg-muted h-auto">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 xl:grid-cols-9 bg-muted h-auto">
             <TabsTrigger value="params">Query Params ({enabledParamsCount})</TabsTrigger>
             <TabsTrigger value="headers">Headers ({enabledHeadersCount})</TabsTrigger>
             <TabsTrigger value="body">Body</TabsTrigger>
@@ -419,6 +583,8 @@ export function RequestEditor() {
             <TabsTrigger value="env">Environment</TabsTrigger>
             <TabsTrigger value="tests">Tests ({requestTests.length})</TabsTrigger>
             <TabsTrigger value="load">Load</TabsTrigger>
+            <TabsTrigger value="automation">Automation</TabsTrigger>
+            <TabsTrigger value="script">Script</TabsTrigger>
           </TabsList>
 
           <TabsContent value="params" className="flex-1 p-3 overflow-y-auto space-y-2 text-xs">
@@ -635,6 +801,99 @@ export function RequestEditor() {
                 <Gauge className="h-4 w-4 mr-1" />
                 {isLoadTesting ? 'Running load test...' : 'Run load test'}
               </Button>
+            </div>
+          </TabsContent>
+
+
+          <TabsContent value="automation" className="flex-1 p-3 overflow-y-auto space-y-3 text-xs">
+            <div className="rounded-md border border-border p-4 bg-card space-y-4">
+              <div>
+                <h3 className="text-xs font-medium">Scheduled automation</h3>
+                <p className="text-xs text-muted-foreground">Run this request repeatedly on a fixed interval for monitoring and regression checks.</p>
+              </div>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={requestSettings.automation?.enabled ?? false}
+                  onChange={(e) => updateField('settings', {
+                    ...requestSettings,
+                    automation: {
+                      ...requestSettings.automation,
+                      enabled: e.target.checked,
+                    },
+                  })}
+                />
+                Enable schedule
+              </label>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">Interval (ms)</label>
+                  <Input
+                    type="number"
+                    min={1000}
+                    value={requestSettings.automation?.intervalMs ?? 60000}
+                    onChange={(e) => updateField('settings', {
+                      ...requestSettings,
+                      automation: {
+                        ...requestSettings.automation,
+                        intervalMs: Math.max(1000, Number(e.target.value) || 60000),
+                      },
+                    })}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Max runs (0 = unlimited)</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={requestSettings.automation?.maxRuns ?? 0}
+                    onChange={(e) => updateField('settings', {
+                      ...requestSettings,
+                      automation: {
+                        ...requestSettings.automation,
+                        maxRuns: Math.max(0, Number(e.target.value) || 0),
+                      },
+                    })}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Stop on first failure</label>
+                  <label className="mt-2 flex items-center gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={requestSettings.automation?.stopOnFailure ?? false}
+                      onChange={(e) => updateField('settings', {
+                        ...requestSettings,
+                        automation: {
+                          ...requestSettings.automation,
+                          stopOnFailure: e.target.checked,
+                        },
+                      })}
+                    />
+                    Enabled
+                  </label>
+                </div>
+              </div>
+
+              <div className="text-xs text-muted-foreground">
+                Status: {isScheduledRunning ? 'Running' : 'Stopped'} • Executions this session: {scheduledRuns}
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="script" className="flex-1 p-3 overflow-y-auto space-y-3 text-xs">
+            <div className="rounded-md border border-border p-4 bg-card space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-medium">Generated test scenario script</h3>
+                  <p className="text-xs text-muted-foreground">Copy and run in Node.js to automate this request flow.</p>
+                </div>
+                <Button size="sm" variant="outline" onClick={copyGeneratedScript}>
+                  <Copy className="h-4 w-4 mr-1" />{scriptCopied ? 'Copied!' : 'Copy script'}
+                </Button>
+              </div>
+              <Textarea value={generatedScript} readOnly className="min-h-[360px] font-mono text-xs" />
             </div>
           </TabsContent>
         </Tabs>

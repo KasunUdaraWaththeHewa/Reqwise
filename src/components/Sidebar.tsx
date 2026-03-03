@@ -45,7 +45,11 @@ export function Sidebar() {
       headers: [{ key: 'Content-Type', value: 'application/json', enabled: true }],
       queryParams: [],
       body: { type: 'none', content: '' },
-      settings: { timeoutMs: 30000 },
+      settings: {
+        timeoutMs: 30000,
+        loadTest: { iterations: 10, concurrency: 2, delayMs: 0 },
+        automation: { enabled: false, intervalMs: 60000, maxRuns: 0, stopOnFailure: false },
+      },
       envVars: [],
       tests: [],
     });
@@ -90,7 +94,20 @@ export function Sidebar() {
         collections: parsed.collections,
         requests: parsed.requests.map((request: typeof state.requests[number]) => ({
           ...request,
-          settings: request.settings ?? { timeoutMs: 30000 },
+          settings: {
+            timeoutMs: request.settings?.timeoutMs ?? 30000,
+            loadTest: {
+              iterations: request.settings?.loadTest?.iterations ?? 10,
+              concurrency: request.settings?.loadTest?.concurrency ?? 2,
+              delayMs: request.settings?.loadTest?.delayMs ?? 0,
+            },
+            automation: {
+              enabled: request.settings?.automation?.enabled ?? false,
+              intervalMs: request.settings?.automation?.intervalMs ?? 60000,
+              maxRuns: request.settings?.automation?.maxRuns ?? 0,
+              stopOnFailure: request.settings?.automation?.stopOnFailure ?? false,
+            },
+          },
           envVars: request.envVars ?? [],
           tests: request.tests ?? [],
         })),
