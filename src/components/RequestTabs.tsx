@@ -44,7 +44,7 @@ export function RequestTabs() {
                   e.stopPropagation();
                   closeTab(tab.id);
                 }}
-                className="opacity-0 group-hover:opacity-100 hover:bg-destructive/20 rounded p-1 transition-all"
+                className="opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-destructive/20 rounded p-1 transition-all"
               >
                 <X className="h-3 w-3" />
               </button>

@@ -129,9 +129,9 @@ export function Sidebar() {
   return (
     <div className="h-full bg-sidebar border-r border-sidebar-border flex flex-col">
       <div className="p-4 border-b border-sidebar-border">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 gap-2">
           <h2 className="text-lg font-semibold text-sidebar-foreground">Collections</h2>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             <Button size="sm" variant="ghost" onClick={handleExportWorkspace} className="h-8 w-8 p-0 hover:bg-sidebar-accent">
               <Download className="h-4 w-4" />
             </Button>
@@ -187,10 +187,10 @@ export function Sidebar() {
           return (
             <div key={collection.id} className="border-b border-sidebar-border">
               <div className="flex items-center justify-between p-3 hover:bg-sidebar-accent cursor-pointer group" onClick={() => updateCollection(collection.id, { isExpanded: !collection.isExpanded })}>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 min-w-0">
                   {collection.isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                   <Folder className="h-4 w-4 text-blue-400" />
-                  <span className="text-sm font-medium text-sidebar-foreground">{collection.name}</span>
+                  <span className="text-sm font-medium text-sidebar-foreground truncate">{collection.name}</span>
                 </div>
                 <Button
                   size="sm"
@@ -211,7 +211,7 @@ export function Sidebar() {
                     <div key={request!.id} className="flex items-center space-x-2 p-2 mx-3 rounded-md hover:bg-sidebar-accent cursor-pointer group" onClick={() => openTab(request!.id)}>
                       <File className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2 min-w-0">
                           <span className={cn('request-method text-xs', `method-${request!.method.toLowerCase()}`)}>{request!.method}</span>
                           <span className="text-sm text-sidebar-foreground truncate">{request!.name}</span>
                           {responses[request!.id]?.testSummary && (

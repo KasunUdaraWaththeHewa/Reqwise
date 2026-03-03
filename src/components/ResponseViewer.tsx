@@ -61,7 +61,7 @@ export function ResponseViewer() {
       <div className="p-3 border-b border-border bg-card text-xs">
         <div className="flex items-start justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-x-3 gap-y-1 flex-wrap">
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-medium">Status:</span>
               <span className={cn('text-xs font-semibold', getStatusColor(response.status))}>{response.status} {response.statusText}</span>
             </div>
@@ -89,7 +89,7 @@ export function ResponseViewer() {
             )}
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="outline" onClick={() => copyToClipboard(responseText, 'response')}>
               <Copy className="h-4 w-4 mr-1" />{copiedField === 'response' ? 'Copied!' : 'Copy Body'}
             </Button>
@@ -105,13 +105,13 @@ export function ResponseViewer() {
 
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="pretty" className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 bg-muted h-auto">
-            <TabsTrigger value="pretty">Pretty</TabsTrigger>
-            <TabsTrigger value="raw">Raw</TabsTrigger>
-            <TabsTrigger value="headers">Headers</TabsTrigger>
-            <TabsTrigger value="history">History</TabsTrigger>
-            <TabsTrigger value="tests">Tests</TabsTrigger>
-            <TabsTrigger value="load">Load Test</TabsTrigger>
+          <TabsList className="flex w-full h-auto justify-start gap-1 overflow-x-auto whitespace-nowrap rounded-none border-b border-border bg-muted/70 p-1">
+            <TabsTrigger className="shrink-0" value="pretty">Pretty</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="raw">Raw</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="headers">Headers</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="history">History</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="tests">Tests</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="load">Load Test</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pretty" className="flex-1 overflow-y-auto p-3 space-y-2 text-xs">
