@@ -542,7 +542,7 @@ runScenario(
             placeholder="Enter URL"
             value={activeRequest.url}
             onChange={(e) => updateField('url', e.target.value)}
-            className="flex-1 min-w-[220px] font-mono text-xs h-8"
+            className="flex-1 min-w-[180px] font-mono text-xs h-8"
           />
 
           <Input
@@ -575,16 +575,16 @@ runScenario(
 
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="params" className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 xl:grid-cols-9 bg-muted h-auto">
-            <TabsTrigger value="params">Query Params ({enabledParamsCount})</TabsTrigger>
-            <TabsTrigger value="headers">Headers ({enabledHeadersCount})</TabsTrigger>
-            <TabsTrigger value="body">Body</TabsTrigger>
-            <TabsTrigger value="auth">Auth</TabsTrigger>
-            <TabsTrigger value="env">Environment</TabsTrigger>
-            <TabsTrigger value="tests">Tests ({requestTests.length})</TabsTrigger>
-            <TabsTrigger value="load">Load</TabsTrigger>
-            <TabsTrigger value="automation">Automation</TabsTrigger>
-            <TabsTrigger value="script">Script</TabsTrigger>
+          <TabsList className="flex w-full h-auto justify-start gap-1 overflow-x-auto whitespace-nowrap rounded-none border-b border-border bg-muted/70 p-1">
+            <TabsTrigger className="shrink-0" value="params">Query Params ({enabledParamsCount})</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="headers">Headers ({enabledHeadersCount})</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="body">Body</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="auth">Auth</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="env">Environment</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="tests">Tests ({requestTests.length})</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="load">Load</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="automation">Automation</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="script">Script</TabsTrigger>
           </TabsList>
 
           <TabsContent value="params" className="flex-1 p-3 overflow-y-auto space-y-2 text-xs">
@@ -600,8 +600,8 @@ runScenario(
             {activeRequest.queryParams.map((param, index) => (
               <div key={index} className="flex items-center gap-2 flex-wrap">
                 <input type="checkbox" checked={param.enabled} onChange={(e) => updateQueryParam(index, 'enabled', e.target.checked)} className="rounded border-input" />
-                <Input placeholder="Key" value={param.key} onChange={(e) => updateQueryParam(index, 'key', e.target.value)} className="flex-1 min-w-[220px] font-mono text-xs h-8" />
-                <Input placeholder="Value" value={param.value} onChange={(e) => updateQueryParam(index, 'value', e.target.value)} className="flex-1 min-w-[220px] font-mono text-xs h-8" />
+                <Input placeholder="Key" value={param.key} onChange={(e) => updateQueryParam(index, 'key', e.target.value)} className="flex-1 min-w-[180px] font-mono text-xs h-8" />
+                <Input placeholder="Value" value={param.value} onChange={(e) => updateQueryParam(index, 'value', e.target.value)} className="flex-1 min-w-[180px] font-mono text-xs h-8" />
                 <Button size="sm" variant="ghost" onClick={() => removeQueryParam(index)} className="p-2 hover:bg-destructive/20"><Trash2 className="h-4 w-4" /></Button>
               </div>
             ))}
@@ -620,8 +620,8 @@ runScenario(
             {activeRequest.headers.map((header, index) => (
               <div key={index} className="flex items-center gap-2 flex-wrap">
                 <input type="checkbox" checked={header.enabled} onChange={(e) => updateHeader(index, 'enabled', e.target.checked)} className="rounded border-input" />
-                <Input placeholder="Key" value={header.key} onChange={(e) => updateHeader(index, 'key', e.target.value)} className="flex-1 min-w-[220px] font-mono text-xs h-8" />
-                <Input placeholder="Value" value={header.value} onChange={(e) => updateHeader(index, 'value', e.target.value)} className="flex-1 min-w-[220px] font-mono text-xs h-8" />
+                <Input placeholder="Key" value={header.key} onChange={(e) => updateHeader(index, 'key', e.target.value)} className="flex-1 min-w-[180px] font-mono text-xs h-8" />
+                <Input placeholder="Value" value={header.value} onChange={(e) => updateHeader(index, 'value', e.target.value)} className="flex-1 min-w-[180px] font-mono text-xs h-8" />
                 <Button size="sm" variant="ghost" onClick={() => removeHeader(index)} className="p-2 hover:bg-destructive/20"><Trash2 className="h-4 w-4" /></Button>
               </div>
             ))}
@@ -679,7 +679,7 @@ runScenario(
                   </Button>
                 </div>
                 {section.rows.map((row, index) => (
-                  <div key={row.id} className="flex items-center gap-2">
+                  <div key={row.id} className="flex flex-wrap items-center gap-2">
                     <input type="checkbox" checked={row.enabled} onChange={(e) => {
                       const next = [...section.rows];
                       next[index] = { ...next[index], enabled: e.target.checked };
@@ -689,12 +689,12 @@ runScenario(
                       const next = [...section.rows];
                       next[index] = { ...next[index], key: e.target.value };
                       updateEnvList(section.scope, next);
-                    }} className="font-mono text-xs" />
+                    }} className="font-mono text-xs min-w-[140px] flex-1" />
                     <Input placeholder="Value" type={row.secret ? 'password' : 'text'} value={row.value} onChange={(e) => {
                       const next = [...section.rows];
                       next[index] = { ...next[index], value: e.target.value };
                       updateEnvList(section.scope, next);
-                    }} className="font-mono text-xs" />
+                    }} className="font-mono text-xs min-w-[140px] flex-1" />
                     <label className="text-xs flex items-center gap-1 text-muted-foreground">
                       <input type="checkbox" checked={row.secret} onChange={(e) => {
                         const next = [...section.rows];
