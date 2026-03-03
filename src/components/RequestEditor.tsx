@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Send, Plus, Trash2, Copy, ClipboardPaste, Wand2 } from 'lucide-react';
-import { useApiStore } from '../store/apiStore';
+import { useApiStore, type EnvVariable, type TestAssertion } from '../store/apiStore';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { httpClient } from '../lib/httpClient';
+import { interpolateTemplate, runAssertions, toVariableMap } from '../lib/requestRuntime';
 import { toast } from 'sonner';
 
 function parseKeyValueRows(text: string) {
@@ -25,13 +26,52 @@ function parseKeyValueRows(text: string) {
     .filter((row) => row.key);
 }
 
+const testTypeLabel: Record<TestAssertion['type'], string> = {
+  statusEquals: 'Status equals',
+  responseTimeLessThan: 'Response time < (ms)',
+  jsonPathExists: 'JSON path exists',
+};
+
+function newEnvVar(): EnvVariable {
+  return { id: `env-${Date.now()}-${Math.random()}`, key: '', value: '', enabled: true, secret: false };
+}
+
+function newTestAssertion(): TestAssertion {
+  return { id: `test-${Date.now()}-${Math.random()}`, type: 'statusEquals', enabled: true, expectedValue: '200' };
+}
+
 export function RequestEditor() {
-  const { activeTab, requests, updateRequest, setResponse } = useApiStore();
+  const {
+    activeTab,
+    requests,
+    collections,
+    updateRequest,
+    setResponse,
+    globalEnvVars,
+    workspaceEnvVars,
+    collectionEnvVars,
+    setGlobalEnvVars,
+    setWorkspaceEnvVars,
+    setCollectionEnvVars,
+  } = useApiStore();
   const [isLoading, setIsLoading] = useState(false);
 
   const activeRequest = activeTab
     ? requests.find((req) => req.id === activeTab)
     : null;
+
+  const requestEnvVars = useMemo(() => activeRequest?.envVars ?? [], [activeRequest?.envVars]);
+  const requestTests = useMemo(() => activeRequest?.tests ?? [], [activeRequest?.tests]);
+
+  const activeCollectionId = useMemo(
+    () => collections.find((collection) => collection.requests.includes(activeRequest?.id ?? ''))?.id,
+    [activeRequest?.id, collections]
+  );
+
+  const collectionScopedVars = useMemo(
+    () => (activeCollectionId ? (collectionEnvVars[activeCollectionId] ?? []) : []),
+    [activeCollectionId, collectionEnvVars]
+  );
 
   const enabledHeadersCount = useMemo(
     () => activeRequest?.headers.filter((h) => h.enabled && h.key).length ?? 0,
@@ -48,6 +88,11 @@ export function RequestEditor() {
     updateRequest(activeRequest.id, { [field]: value });
   };
 
+  const interpolate = useCallback((value: string) => {
+    const variables = toVariableMap(globalEnvVars, workspaceEnvVars, collectionScopedVars, requestEnvVars);
+    return interpolateTemplate(value, variables);
+  }, [collectionScopedVars, globalEnvVars, requestEnvVars, workspaceEnvVars]);
+
   const handleSendRequest = useCallback(async () => {
     if (!activeRequest) return;
 
@@ -57,36 +102,42 @@ export function RequestEditor() {
       activeRequest.headers
         .filter((h) => h.enabled && h.key && h.value)
         .forEach((h) => {
-          headers[h.key] = h.value;
+          headers[h.key] = interpolate(h.value);
         });
 
       const params: Record<string, string> = {};
       activeRequest.queryParams
         .filter((p) => p.enabled && p.key && p.value)
         .forEach((p) => {
-          params[p.key] = p.value;
+          params[p.key] = interpolate(p.value);
         });
 
       let body: unknown;
       if (activeRequest.body.type === 'json' && activeRequest.body.content) {
+        const content = interpolate(activeRequest.body.content);
         try {
-          body = JSON.parse(activeRequest.body.content);
+          body = JSON.parse(content);
         } catch {
-          body = activeRequest.body.content;
+          body = content;
         }
       } else if (activeRequest.body.type === 'text') {
-        body = activeRequest.body.content;
+        body = interpolate(activeRequest.body.content);
       }
 
       const response = await httpClient.request({
         method: activeRequest.method,
-        url: activeRequest.url,
+        url: interpolate(activeRequest.url),
         headers,
         params,
         body,
       });
 
-      setResponse(activeRequest.id, response);
+      const { results, summary } = runAssertions(response, requestTests);
+      setResponse(activeRequest.id, {
+        ...response,
+        testResults: results,
+        testSummary: summary,
+      });
       toast.success('Request sent successfully');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -102,7 +153,7 @@ export function RequestEditor() {
     } finally {
       setIsLoading(false);
     }
-  }, [activeRequest, setResponse]);
+  }, [activeRequest, interpolate, requestTests, setResponse]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -207,9 +258,44 @@ export function RequestEditor() {
     }
   };
 
+  const updateEnvList = (
+    scope: 'global' | 'workspace' | 'collection' | 'request',
+    next: EnvVariable[]
+  ) => {
+    if (!activeRequest) return;
+    if (scope === 'global') setGlobalEnvVars(next);
+    if (scope === 'workspace') setWorkspaceEnvVars(next);
+    if (scope === 'collection' && activeCollectionId) setCollectionEnvVars(activeCollectionId, next);
+    if (scope === 'request') updateField('envVars', next);
+  };
+
+  const addTest = () => {
+    if (!activeRequest) return;
+    updateField('tests', [...requestTests, newTestAssertion()]);
+  };
+
+  const updateTest = (index: number, field: keyof TestAssertion, value: string | boolean) => {
+    if (!activeRequest) return;
+    const next = [...requestTests];
+    next[index] = { ...next[index], [field]: value };
+    updateField('tests', next);
+  };
+
+  const removeTest = (index: number) => {
+    if (!activeRequest) return;
+    updateField('tests', requestTests.filter((_, i) => i !== index));
+  };
+
   if (!activeRequest) {
     return <div className="flex-1 flex items-center justify-center bg-background text-muted-foreground">No request selected</div>;
   }
+
+  const envSections: { title: string; scope: 'global' | 'workspace' | 'collection' | 'request'; rows: EnvVariable[]; description: string }[] = [
+    { title: 'Global', scope: 'global', rows: globalEnvVars, description: 'Shared across all workspaces and requests.' },
+    { title: 'Workspace', scope: 'workspace', rows: workspaceEnvVars, description: 'Applies to the current workspace.' },
+    { title: 'Collection', scope: 'collection', rows: collectionScopedVars, description: 'Applies to requests in this collection.' },
+    { title: 'Request', scope: 'request', rows: requestEnvVars, description: 'Overrides values for this request only.' },
+  ];
 
   return (
     <div className="flex-1 flex flex-col bg-background">
@@ -252,11 +338,13 @@ export function RequestEditor() {
 
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="params" className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-4 bg-muted">
+          <TabsList className="grid w-full grid-cols-6 bg-muted">
             <TabsTrigger value="params">Query Params ({enabledParamsCount})</TabsTrigger>
             <TabsTrigger value="headers">Headers ({enabledHeadersCount})</TabsTrigger>
             <TabsTrigger value="body">Body</TabsTrigger>
             <TabsTrigger value="auth">Auth</TabsTrigger>
+            <TabsTrigger value="env">Environment</TabsTrigger>
+            <TabsTrigger value="tests">Tests ({requestTests.length})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="params" className="flex-1 p-4 overflow-y-auto space-y-2">
@@ -336,6 +424,84 @@ export function RequestEditor() {
                 <Button size="sm" variant="outline" onClick={() => updateField('headers', [...activeRequest.headers, { key: 'X-API-Key', value: '', enabled: true }])}>API key</Button>
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="env" className="flex-1 p-4 overflow-y-auto space-y-4">
+            {envSections.map((section) => (
+              <div key={section.scope} className="rounded-md border border-border p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-medium">{section.title} variables</h3>
+                    <p className="text-xs text-muted-foreground">{section.description}</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => updateEnvList(section.scope, [...section.rows, newEnvVar()])}>
+                    <Plus className="h-4 w-4 mr-1" />Add
+                  </Button>
+                </div>
+                {section.rows.map((row, index) => (
+                  <div key={row.id} className="flex items-center gap-2">
+                    <input type="checkbox" checked={row.enabled} onChange={(e) => {
+                      const next = [...section.rows];
+                      next[index] = { ...next[index], enabled: e.target.checked };
+                      updateEnvList(section.scope, next);
+                    }} className="rounded border-input" />
+                    <Input placeholder="Key" value={row.key} onChange={(e) => {
+                      const next = [...section.rows];
+                      next[index] = { ...next[index], key: e.target.value };
+                      updateEnvList(section.scope, next);
+                    }} className="font-mono text-sm" />
+                    <Input placeholder="Value" type={row.secret ? 'password' : 'text'} value={row.value} onChange={(e) => {
+                      const next = [...section.rows];
+                      next[index] = { ...next[index], value: e.target.value };
+                      updateEnvList(section.scope, next);
+                    }} className="font-mono text-sm" />
+                    <label className="text-xs flex items-center gap-1 text-muted-foreground">
+                      <input type="checkbox" checked={row.secret} onChange={(e) => {
+                        const next = [...section.rows];
+                        next[index] = { ...next[index], secret: e.target.checked };
+                        updateEnvList(section.scope, next);
+                      }} /> secret
+                    </label>
+                    <Button size="sm" variant="ghost" onClick={() => updateEnvList(section.scope, section.rows.filter((_, i) => i !== index))} className="p-2 hover:bg-destructive/20"><Trash2 className="h-4 w-4" /></Button>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </TabsContent>
+
+          <TabsContent value="tests" className="flex-1 p-4 overflow-y-auto space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-medium">Request tests</h3>
+                <p className="text-xs text-muted-foreground">Assertions run after each request and results appear in response + history.</p>
+              </div>
+              <Button size="sm" variant="outline" onClick={addTest}><Plus className="h-4 w-4 mr-1" />Add test</Button>
+            </div>
+
+            {requestTests.length === 0 && (
+              <div className="text-sm text-muted-foreground border border-dashed rounded-md p-4">No tests configured yet.</div>
+            )}
+
+            {requestTests.map((test, index) => (
+              <div key={test.id} className="rounded-md border border-border p-3 flex items-center gap-2">
+                <input type="checkbox" checked={test.enabled} onChange={(e) => updateTest(index, 'enabled', e.target.checked)} className="rounded border-input" />
+                <Select value={test.type} onValueChange={(value) => updateTest(index, 'type', value)}>
+                  <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="statusEquals">{testTypeLabel.statusEquals}</SelectItem>
+                    <SelectItem value="responseTimeLessThan">{testTypeLabel.responseTimeLessThan}</SelectItem>
+                    <SelectItem value="jsonPathExists">{testTypeLabel.jsonPathExists}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  value={test.expectedValue}
+                  onChange={(e) => updateTest(index, 'expectedValue', e.target.value)}
+                  placeholder={test.type === 'jsonPathExists' ? 'data.user.id' : 'Expected value'}
+                  className="font-mono text-sm"
+                />
+                <Button size="sm" variant="ghost" onClick={() => removeTest(index)} className="p-2 hover:bg-destructive/20"><Trash2 className="h-4 w-4" /></Button>
+              </div>
+            ))}
           </TabsContent>
         </Tabs>
       </div>
