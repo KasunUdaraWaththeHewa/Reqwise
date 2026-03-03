@@ -1,5 +1,7 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
+
+import { indexedDbStorage } from '@/lib/indexedDbStorage';
 
 export interface EnvVariable {
   id: string;
@@ -343,6 +345,7 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
   },
 }), {
   name: 'reqwise-store',
+  storage: createJSONStorage(() => indexedDbStorage),
   partialize: (state) => ({
     collections: state.collections,
     requests: state.requests,
