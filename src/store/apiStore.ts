@@ -34,6 +34,9 @@ export interface Request {
     type: 'none' | 'json' | 'form' | 'text';
     content: string;
   };
+  settings: {
+    timeoutMs: number;
+  };
   envVars: EnvVariable[];
   tests: TestAssertion[];
   createdAt: number;
@@ -141,6 +144,9 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
       body: {
         type: 'none',
         content: '',
+      },
+      settings: {
+        timeoutMs: 30000,
       },
       envVars: [],
       tests: [],

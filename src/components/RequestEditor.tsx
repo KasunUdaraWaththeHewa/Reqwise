@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Send, Plus, Trash2, Copy, ClipboardPaste, Wand2 } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Send, Plus, Trash2, Copy, ClipboardPaste, Wand2, XCircle } from 'lucide-react';
 import { useApiStore, type EnvVariable, type TestAssertion } from '../store/apiStore';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -55,6 +55,7 @@ export function RequestEditor() {
     setCollectionEnvVars,
   } = useApiStore();
   const [isLoading, setIsLoading] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const activeRequest = activeTab
     ? requests.find((req) => req.id === activeTab)
@@ -62,6 +63,7 @@ export function RequestEditor() {
 
   const requestEnvVars = useMemo(() => activeRequest?.envVars ?? [], [activeRequest?.envVars]);
   const requestTests = useMemo(() => activeRequest?.tests ?? [], [activeRequest?.tests]);
+  const requestSettings = useMemo(() => activeRequest?.settings ?? { timeoutMs: 30000 }, [activeRequest?.settings]);
 
   const activeCollectionId = useMemo(
     () => collections.find((collection) => collection.requests.includes(activeRequest?.id ?? ''))?.id,
@@ -96,6 +98,8 @@ export function RequestEditor() {
   const handleSendRequest = useCallback(async () => {
     if (!activeRequest) return;
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     setIsLoading(true);
     try {
       const headers: Record<string, string> = {};
@@ -130,6 +134,8 @@ export function RequestEditor() {
         headers,
         params,
         body,
+        timeoutMs: requestSettings.timeoutMs,
+        signal: controller.signal,
       });
 
       const { results, summary } = runAssertions(response, requestTests);
@@ -141,9 +147,10 @@ export function RequestEditor() {
       toast.success('Request sent successfully');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
+      const statusText = typeof error === 'object' && error !== null && 'statusText' in error ? String((error as { statusText?: string }).statusText || 'Network Error') : 'Network Error';
       setResponse(activeRequest.id, {
         status: 0,
-        statusText: 'Network Error',
+        statusText,
         headers: {},
         data: message,
         time: 0,
@@ -152,8 +159,9 @@ export function RequestEditor() {
       toast.error('Request failed');
     } finally {
       setIsLoading(false);
+      abortControllerRef.current = null;
     }
-  }, [activeRequest, interpolate, requestTests, setResponse]);
+  }, [activeRequest, interpolate, requestSettings.timeoutMs, requestTests, setResponse]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -286,6 +294,12 @@ export function RequestEditor() {
     updateField('tests', requestTests.filter((_, i) => i !== index));
   };
 
+
+  const cancelRequest = () => {
+    abortControllerRef.current?.abort();
+    toast.message('Request cancelled');
+  };
+
   if (!activeRequest) {
     return <div className="flex-1 flex items-center justify-center bg-background text-muted-foreground">No request selected</div>;
   }
@@ -328,6 +342,22 @@ export function RequestEditor() {
             onChange={(e) => updateField('url', e.target.value)}
             className="flex-1 font-mono text-sm"
           />
+
+          <Input
+            type="number"
+            min={1000}
+            step={500}
+            value={requestSettings.timeoutMs}
+            onChange={(e) => updateField('settings', { ...requestSettings, timeoutMs: Math.max(1000, Number(e.target.value) || 30000) })}
+            className="w-36 text-sm"
+            placeholder="Timeout (ms)"
+          />
+
+          {isLoading && (
+            <Button variant="outline" onClick={cancelRequest}>
+              <XCircle className="h-4 w-4 mr-1" />Cancel
+            </Button>
+          )}
 
           <Button onClick={handleSendRequest} disabled={isLoading || !activeRequest.url}>
             {isLoading ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-background border-t-transparent" /> : <Send className="h-4 w-4" />}
