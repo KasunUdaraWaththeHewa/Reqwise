@@ -129,6 +129,14 @@ export function Sidebar() {
   return (
     <div className="h-full bg-sidebar border-r border-sidebar-border flex flex-col">
       <div className="p-4 border-b border-sidebar-border">
+        <div className="mb-3 flex items-center gap-2">
+          <img src="/reqwise-logo.svg" alt="Reqwise logo" className="h-7 w-7 rounded-md" />
+          <div>
+            <p className="text-sm font-semibold text-sidebar-foreground">Reqwise</p>
+            <p className="text-[11px] text-muted-foreground">HTTP Testing Tool</p>
+          </div>
+        </div>
+
         <div className="flex items-center justify-between mb-3 gap-2">
           <h2 className="text-lg font-semibold text-sidebar-foreground">Collections</h2>
           <div className="flex items-center gap-1 shrink-0">
