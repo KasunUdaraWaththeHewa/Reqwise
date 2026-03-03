@@ -9,14 +9,14 @@ export function RequestTabs() {
 
   if (tabs.length === 0) {
     return (
-      <div className="h-12 border-b border-border flex items-center px-4">
-        <span className="text-sm text-muted-foreground">No requests open</span>
+      <div className="h-10 border-b border-border flex items-center px-3">
+        <span className="text-xs text-muted-foreground">No requests open</span>
       </div>
     );
   }
 
   return (
-    <div className="h-12 border-b border-border bg-card">
+    <div className="h-10 border-b border-border bg-card">
       <div className="flex overflow-x-auto">
         {tabs.map((tab) => {
           const request = requests.find((req) => req.id === tab.requestId);
@@ -26,7 +26,7 @@ export function RequestTabs() {
             <div
               key={tab.id}
               className={cn(
-                'flex items-center space-x-2 px-4 py-3 border-r border-border cursor-pointer group min-w-0 max-w-xs',
+                'flex items-center space-x-1.5 px-3 py-2 border-r border-border cursor-pointer group min-w-0 max-w-[14rem]',
                 'hover:bg-accent transition-colors',
                 activeTab === tab.id ? 'bg-accent border-b-2 border-primary' : ''
               )}
@@ -35,7 +35,7 @@ export function RequestTabs() {
               <span className={cn('request-method text-xs flex-shrink-0', `method-${request.method.toLowerCase()}`)}>
                 {request.method}
               </span>
-              <span className="text-sm truncate flex-1">
+              <span className="text-xs truncate flex-1">
                 {request.name}
                 {tab.isModified && <span className="text-primary ml-1">•</span>}
               </span>

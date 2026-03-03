@@ -9,7 +9,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../compone
 
 const Index = () => {
   return (
-    <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
+    <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden text-[13px]">
       <div className="flex-1 overflow-hidden p-3">
         <div className="h-full rounded-xl border border-border bg-card overflow-hidden shadow-sm">
           <ResizablePanelGroup direction="horizontal" className="h-full">

@@ -351,20 +351,20 @@ export function RequestEditor() {
 
   return (
     <div className="flex-1 flex flex-col bg-background">
-      <div className="p-4 border-b border-border bg-card space-y-3">
-        <div className="flex items-center justify-between gap-3">
+      <div className="p-3 border-b border-border bg-card space-y-2 text-xs">
+        <div className="flex items-start justify-between gap-2 flex-wrap">
           <Input
             placeholder="Request name"
             value={activeRequest.name}
             onChange={(e) => updateField('name', e.target.value)}
-            className="max-w-xs font-medium"
+            className="max-w-xs font-medium h-8 text-xs"
           />
-          <div className="text-xs text-muted-foreground">Auto-save enabled • ⌘/Ctrl+Enter Send • ⌘/Ctrl+S Save</div>
+          <div className="text-[11px] text-muted-foreground">Auto-save • ⌘/Ctrl+Enter Send • ⌘/Ctrl+S Save</div>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Select value={activeRequest.method} onValueChange={(value) => updateField('method', value)}>
-            <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-20 h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent className="bg-popover border-border">
               <SelectItem value="GET">GET</SelectItem>
               <SelectItem value="POST">POST</SelectItem>
@@ -378,7 +378,7 @@ export function RequestEditor() {
             placeholder="Enter URL"
             value={activeRequest.url}
             onChange={(e) => updateField('url', e.target.value)}
-            className="flex-1 font-mono text-sm"
+            className="flex-1 min-w-[220px] font-mono text-xs h-8"
           />
 
           <Input
@@ -387,7 +387,7 @@ export function RequestEditor() {
             step={500}
             value={requestSettings.timeoutMs}
             onChange={(e) => updateField('settings', { ...requestSettings, timeoutMs: Math.max(1000, Number(e.target.value) || 30000) })}
-            className="w-36 text-sm"
+            className="w-32 text-xs h-8"
             placeholder="Timeout (ms)"
           />
 
@@ -411,7 +411,7 @@ export function RequestEditor() {
 
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="params" className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-7 bg-muted">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 xl:grid-cols-7 bg-muted h-auto">
             <TabsTrigger value="params">Query Params ({enabledParamsCount})</TabsTrigger>
             <TabsTrigger value="headers">Headers ({enabledHeadersCount})</TabsTrigger>
             <TabsTrigger value="body">Body</TabsTrigger>
@@ -421,9 +421,9 @@ export function RequestEditor() {
             <TabsTrigger value="load">Load</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="params" className="flex-1 p-4 overflow-y-auto space-y-2">
+          <TabsContent value="params" className="flex-1 p-3 overflow-y-auto space-y-2 text-xs">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium">Query Parameters</h3>
+              <h3 className="text-xs font-medium">Query Parameters</h3>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => copyRows('queryParams')}><Copy className="h-4 w-4 mr-1" />Copy</Button>
                 <Button size="sm" variant="outline" onClick={() => pasteRows('queryParams')}><ClipboardPaste className="h-4 w-4 mr-1" />Paste</Button>
@@ -432,18 +432,18 @@ export function RequestEditor() {
             </div>
 
             {activeRequest.queryParams.map((param, index) => (
-              <div key={index} className="flex items-center space-x-2">
+              <div key={index} className="flex items-center gap-2 flex-wrap">
                 <input type="checkbox" checked={param.enabled} onChange={(e) => updateQueryParam(index, 'enabled', e.target.checked)} className="rounded border-input" />
-                <Input placeholder="Key" value={param.key} onChange={(e) => updateQueryParam(index, 'key', e.target.value)} className="flex-1 font-mono text-sm" />
-                <Input placeholder="Value" value={param.value} onChange={(e) => updateQueryParam(index, 'value', e.target.value)} className="flex-1 font-mono text-sm" />
+                <Input placeholder="Key" value={param.key} onChange={(e) => updateQueryParam(index, 'key', e.target.value)} className="flex-1 min-w-[220px] font-mono text-xs h-8" />
+                <Input placeholder="Value" value={param.value} onChange={(e) => updateQueryParam(index, 'value', e.target.value)} className="flex-1 min-w-[220px] font-mono text-xs h-8" />
                 <Button size="sm" variant="ghost" onClick={() => removeQueryParam(index)} className="p-2 hover:bg-destructive/20"><Trash2 className="h-4 w-4" /></Button>
               </div>
             ))}
           </TabsContent>
 
-          <TabsContent value="headers" className="flex-1 p-4 overflow-y-auto space-y-2">
+          <TabsContent value="headers" className="flex-1 p-3 overflow-y-auto space-y-2 text-xs">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium">Headers</h3>
+              <h3 className="text-xs font-medium">Headers</h3>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => copyRows('headers')}><Copy className="h-4 w-4 mr-1" />Copy</Button>
                 <Button size="sm" variant="outline" onClick={() => pasteRows('headers')}><ClipboardPaste className="h-4 w-4 mr-1" />Paste</Button>
@@ -452,18 +452,18 @@ export function RequestEditor() {
             </div>
 
             {activeRequest.headers.map((header, index) => (
-              <div key={index} className="flex items-center space-x-2">
+              <div key={index} className="flex items-center gap-2 flex-wrap">
                 <input type="checkbox" checked={header.enabled} onChange={(e) => updateHeader(index, 'enabled', e.target.checked)} className="rounded border-input" />
-                <Input placeholder="Key" value={header.key} onChange={(e) => updateHeader(index, 'key', e.target.value)} className="flex-1 font-mono text-sm" />
-                <Input placeholder="Value" value={header.value} onChange={(e) => updateHeader(index, 'value', e.target.value)} className="flex-1 font-mono text-sm" />
+                <Input placeholder="Key" value={header.key} onChange={(e) => updateHeader(index, 'key', e.target.value)} className="flex-1 min-w-[220px] font-mono text-xs h-8" />
+                <Input placeholder="Value" value={header.value} onChange={(e) => updateHeader(index, 'value', e.target.value)} className="flex-1 min-w-[220px] font-mono text-xs h-8" />
                 <Button size="sm" variant="ghost" onClick={() => removeHeader(index)} className="p-2 hover:bg-destructive/20"><Trash2 className="h-4 w-4" /></Button>
               </div>
             ))}
           </TabsContent>
 
-          <TabsContent value="body" className="flex-1 p-4 overflow-y-auto space-y-4">
+          <TabsContent value="body" className="flex-1 p-3 overflow-y-auto space-y-3 text-xs">
             <div className="flex items-center space-x-3">
-              <h3 className="text-sm font-medium">Body</h3>
+              <h3 className="text-xs font-medium">Body</h3>
               <Select value={activeRequest.body.type} onValueChange={(value) => updateField('body', { ...activeRequest.body, type: value })}>
                 <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
                 <SelectContent className="bg-popover border-border">
@@ -500,12 +500,12 @@ export function RequestEditor() {
             </div>
           </TabsContent>
 
-          <TabsContent value="env" className="flex-1 p-4 overflow-y-auto space-y-4">
+          <TabsContent value="env" className="flex-1 p-3 overflow-y-auto space-y-3 text-xs">
             {envSections.map((section) => (
               <div key={section.scope} className="rounded-md border border-border p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-sm font-medium">{section.title} variables</h3>
+                    <h3 className="text-xs font-medium">{section.title} variables</h3>
                     <p className="text-xs text-muted-foreground">{section.description}</p>
                   </div>
                   <Button size="sm" variant="outline" onClick={() => updateEnvList(section.scope, [...section.rows, newEnvVar()])}>
@@ -523,12 +523,12 @@ export function RequestEditor() {
                       const next = [...section.rows];
                       next[index] = { ...next[index], key: e.target.value };
                       updateEnvList(section.scope, next);
-                    }} className="font-mono text-sm" />
+                    }} className="font-mono text-xs" />
                     <Input placeholder="Value" type={row.secret ? 'password' : 'text'} value={row.value} onChange={(e) => {
                       const next = [...section.rows];
                       next[index] = { ...next[index], value: e.target.value };
                       updateEnvList(section.scope, next);
-                    }} className="font-mono text-sm" />
+                    }} className="font-mono text-xs" />
                     <label className="text-xs flex items-center gap-1 text-muted-foreground">
                       <input type="checkbox" checked={row.secret} onChange={(e) => {
                         const next = [...section.rows];
@@ -543,10 +543,10 @@ export function RequestEditor() {
             ))}
           </TabsContent>
 
-          <TabsContent value="tests" className="flex-1 p-4 overflow-y-auto space-y-3">
+          <TabsContent value="tests" className="flex-1 p-3 overflow-y-auto space-y-2 text-xs">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-medium">Request tests</h3>
+                <h3 className="text-xs font-medium">Request tests</h3>
                 <p className="text-xs text-muted-foreground">Assertions run after each request and results appear in response + history.</p>
               </div>
               <Button size="sm" variant="outline" onClick={addTest}><Plus className="h-4 w-4 mr-1" />Add test</Button>
@@ -557,10 +557,10 @@ export function RequestEditor() {
             )}
 
             {requestTests.map((test, index) => (
-              <div key={test.id} className="rounded-md border border-border p-3 flex items-center gap-2">
+              <div key={test.id} className="rounded-md border border-border p-2 flex items-center gap-2 flex-wrap">
                 <input type="checkbox" checked={test.enabled} onChange={(e) => updateTest(index, 'enabled', e.target.checked)} className="rounded border-input" />
                 <Select value={test.type} onValueChange={(value) => updateTest(index, 'type', value)}>
-                  <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-44 h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="statusEquals">{testTypeLabel.statusEquals}</SelectItem>
                     <SelectItem value="responseTimeLessThan">{testTypeLabel.responseTimeLessThan}</SelectItem>
@@ -571,17 +571,17 @@ export function RequestEditor() {
                   value={test.expectedValue}
                   onChange={(e) => updateTest(index, 'expectedValue', e.target.value)}
                   placeholder={test.type === 'jsonPathExists' ? 'data.user.id' : 'Expected value'}
-                  className="font-mono text-sm"
+                  className="font-mono text-xs"
                 />
                 <Button size="sm" variant="ghost" onClick={() => removeTest(index)} className="p-2 hover:bg-destructive/20"><Trash2 className="h-4 w-4" /></Button>
               </div>
             ))}
           </TabsContent>
 
-          <TabsContent value="load" className="flex-1 p-4 overflow-y-auto space-y-4">
+          <TabsContent value="load" className="flex-1 p-3 overflow-y-auto space-y-3 text-xs">
             <div className="rounded-md border border-border p-4 bg-card space-y-4">
               <div>
-                <h3 className="text-sm font-medium">Load testing</h3>
+                <h3 className="text-xs font-medium">Load testing</h3>
                 <p className="text-xs text-muted-foreground">Run repeated requests against this endpoint and capture latency + throughput metrics.</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
