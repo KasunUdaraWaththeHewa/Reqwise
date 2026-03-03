@@ -26,9 +26,9 @@ export function ResponseViewer() {
 
   if (!response) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-background border-t border-border">
+      <div className="flex-1 flex items-center justify-center bg-background border-t border-border text-xs">
         <div className="text-center">
-          <h3 className="text-lg font-medium text-foreground mb-2">No response yet</h3>
+          <h3 className="text-base font-medium text-foreground mb-1">No response yet</h3>
           <p className="text-muted-foreground">Send a request to see the response</p>
         </div>
       </div>
@@ -58,33 +58,33 @@ export function ResponseViewer() {
 
   return (
     <div className="flex-1 flex flex-col bg-background border-t border-border">
-      <div className="p-4 border-b border-border bg-card">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center space-x-4">
+      <div className="p-3 border-b border-border bg-card text-xs">
+        <div className="flex items-start justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-x-3 gap-y-1 flex-wrap">
             <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium">Status:</span>
-              <span className={cn('text-sm font-semibold', getStatusColor(response.status))}>{response.status} {response.statusText}</span>
+              <span className="text-xs font-medium">Status:</span>
+              <span className={cn('text-xs font-semibold', getStatusColor(response.status))}>{response.status} {response.statusText}</span>
             </div>
             <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium">Time:</span>
-              <span className="text-sm text-muted-foreground">{response.time}ms</span>
+              <span className="text-xs font-medium">Time:</span>
+              <span className="text-xs text-muted-foreground">{response.time}ms</span>
             </div>
             <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium">Size:</span>
-              <span className="text-sm text-muted-foreground">{response.size} bytes</span>
+              <span className="text-xs font-medium">Size:</span>
+              <span className="text-xs text-muted-foreground">{response.size} bytes</span>
             </div>
             {response.testSummary && (
               <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium">Tests:</span>
+                <span className="text-xs font-medium">Tests:</span>
                 <span className="text-sm text-green-400">{response.testSummary.passed} passed</span>
                 <span className="text-sm text-red-400">{response.testSummary.failed} failed</span>
               </div>
             )}
             {response.loadTestSummary && (
               <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium">Load:</span>
-                <span className="text-sm text-muted-foreground">{response.loadTestSummary.iterations} req</span>
-                <span className="text-sm text-muted-foreground">{response.loadTestSummary.requestsPerSecond} rps</span>
+                <span className="text-xs font-medium">Load:</span>
+                <span className="text-xs text-muted-foreground">{response.loadTestSummary.iterations} req</span>
+                <span className="text-xs text-muted-foreground">{response.loadTestSummary.requestsPerSecond} rps</span>
               </div>
             )}
           </div>
@@ -105,7 +105,7 @@ export function ResponseViewer() {
 
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="pretty" className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-6 bg-muted">
+          <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 bg-muted h-auto">
             <TabsTrigger value="pretty">Pretty</TabsTrigger>
             <TabsTrigger value="raw">Raw</TabsTrigger>
             <TabsTrigger value="headers">Headers</TabsTrigger>
@@ -114,21 +114,21 @@ export function ResponseViewer() {
             <TabsTrigger value="load">Load Test</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="pretty" className="flex-1 overflow-y-auto p-4 space-y-3">
+          <TabsContent value="pretty" className="flex-1 overflow-y-auto p-3 space-y-2 text-xs">
             <Input
               placeholder="Search response..."
               value={responseSearch}
               onChange={(e) => setResponseSearch(e.target.value)}
-              className="max-w-sm"
+              className="max-w-sm h-8 text-xs"
             />
-            <pre className="text-sm font-mono whitespace-pre-wrap break-words bg-muted/50 p-4 rounded-lg">{filteredResponseText || 'No lines matched the search filter.'}</pre>
+            <pre className="text-xs font-mono whitespace-pre-wrap break-words bg-muted/50 p-3 rounded-lg">{filteredResponseText || 'No lines matched the search filter.'}</pre>
           </TabsContent>
 
-          <TabsContent value="raw" className="flex-1 overflow-y-auto p-4">
-            <pre className="text-sm font-mono whitespace-pre-wrap break-words bg-muted/50 p-4 rounded-lg">{typeof response.data === 'string' ? response.data : JSON.stringify(response.data)}</pre>
+          <TabsContent value="raw" className="flex-1 overflow-y-auto p-3 text-xs">
+            <pre className="text-xs font-mono whitespace-pre-wrap break-words bg-muted/50 p-3 rounded-lg">{typeof response.data === 'string' ? response.data : JSON.stringify(response.data)}</pre>
           </TabsContent>
 
-          <TabsContent value="headers" className="flex-1 overflow-y-auto p-4">
+          <TabsContent value="headers" className="flex-1 overflow-y-auto p-3 text-xs">
             <div className="space-y-2">
               {Object.entries(response.headers).map(([key, value]) => (
                 <div key={key} className="flex items-center justify-between p-2 bg-muted/50 rounded">
@@ -139,13 +139,13 @@ export function ResponseViewer() {
             </div>
           </TabsContent>
 
-          <TabsContent value="history" className="flex-1 overflow-y-auto p-4">
+          <TabsContent value="history" className="flex-1 overflow-y-auto p-3 text-xs">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium">Recent Requests</h3>
+              <h3 className="text-xs font-medium">Recent Requests</h3>
               <Button size="sm" variant="ghost" onClick={clearHistory}><Trash2 className="h-4 w-4 mr-1" />Clear</Button>
             </div>
             <div className="space-y-2">
-              {requestHistory.length === 0 && <p className="text-sm text-muted-foreground">No history yet.</p>}
+              {requestHistory.length === 0 && <p className="text-xs text-muted-foreground">No history yet.</p>}
               {requestHistory.map((entry) => (
                 <div key={entry.id} className="p-2 rounded border border-border bg-card text-sm flex items-center justify-between">
                   <div>
@@ -172,10 +172,10 @@ export function ResponseViewer() {
             </div>
           </TabsContent>
 
-          <TabsContent value="tests" className="flex-1 overflow-y-auto p-4">
+          <TabsContent value="tests" className="flex-1 overflow-y-auto p-3 text-xs">
             <div className="space-y-2">
               {!response.testResults || response.testResults.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No tests were configured for this request.</p>
+                <p className="text-xs text-muted-foreground">No tests were configured for this request.</p>
               ) : (
                 response.testResults.map((result) => (
                   <div key={result.id} className="p-2 rounded border border-border bg-card text-sm flex items-center justify-between">
@@ -192,9 +192,9 @@ export function ResponseViewer() {
             </div>
           </TabsContent>
 
-          <TabsContent value="load" className="flex-1 overflow-y-auto p-4">
+          <TabsContent value="load" className="flex-1 overflow-y-auto p-3 text-xs">
             {!response.loadTestSummary ? (
-              <p className="text-sm text-muted-foreground">No load test data available. Run a load test from the request editor.</p>
+              <p className="text-xs text-muted-foreground">No load test data available. Run a load test from the request editor.</p>
             ) : (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
