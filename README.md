@@ -25,6 +25,10 @@ Reqwise is a local-first API client inspired by Postman, built with React + Vite
   - Keyboard navigation in command palette (Up/Down + Enter)
 - **Auth helpers**
   - One-click add common auth headers (Bearer, Basic, API key)
+- **Load testing**
+  - Configure iterations, concurrency, and delay per request
+  - Run parallelized request bursts and review throughput + latency percentiles (P50/P95/P99)
+  - Persist load test summary into history for quick comparisons
 - **Response helpers**
   - Copy response body
   - Copy all response headers

@@ -25,6 +25,31 @@ export interface TestResult {
   message: string;
 }
 
+export interface LoadTestResult {
+  iteration: number;
+  status: number;
+  time: number;
+  size: number;
+  error?: string;
+}
+
+export interface LoadTestSummary {
+  iterations: number;
+  concurrency: number;
+  delayMs: number;
+  totalDurationMs: number;
+  requestsPerSecond: number;
+  successfulRequests: number;
+  failedRequests: number;
+  minResponseTimeMs: number;
+  maxResponseTimeMs: number;
+  avgResponseTimeMs: number;
+  p50ResponseTimeMs: number;
+  p95ResponseTimeMs: number;
+  p99ResponseTimeMs: number;
+  results: LoadTestResult[];
+}
+
 export interface Request {
   id: string;
   name: string;
@@ -38,6 +63,11 @@ export interface Request {
   };
   settings: {
     timeoutMs: number;
+    loadTest: {
+      iterations: number;
+      concurrency: number;
+      delayMs: number;
+    };
   };
   envVars: EnvVariable[];
   tests: TestAssertion[];
@@ -63,6 +93,7 @@ export interface Response {
     passed: number;
     failed: number;
   };
+  loadTestSummary?: LoadTestSummary;
 }
 
 export interface RequestHistoryEntry {
@@ -75,6 +106,11 @@ export interface RequestHistoryEntry {
   tests?: {
     passed: number;
     failed: number;
+  };
+  loadTest?: {
+    iterations: number;
+    failedRequests: number;
+    requestsPerSecond: number;
   };
   createdAt: number;
 }
@@ -149,6 +185,11 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
       },
       settings: {
         timeoutMs: 30000,
+        loadTest: {
+          iterations: 10,
+          concurrency: 2,
+          delayMs: 0,
+        },
       },
       envVars: [],
       tests: [],
@@ -300,6 +341,13 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
               status: response.status,
               time: response.time,
               tests: response.testSummary,
+              loadTest: response.loadTestSummary
+                ? {
+                    iterations: response.loadTestSummary.iterations,
+                    failedRequests: response.loadTestSummary.failedRequests,
+                    requestsPerSecond: response.loadTestSummary.requestsPerSecond,
+                  }
+                : undefined,
               createdAt: Date.now(),
             },
             ...state.requestHistory,
