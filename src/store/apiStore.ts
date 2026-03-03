@@ -1,6 +1,27 @@
-
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+
+export interface EnvVariable {
+  id: string;
+  key: string;
+  value: string;
+  enabled: boolean;
+  secret: boolean;
+}
+
+export interface TestAssertion {
+  id: string;
+  type: 'statusEquals' | 'responseTimeLessThan' | 'jsonPathExists';
+  enabled: boolean;
+  expectedValue: string;
+}
+
+export interface TestResult {
+  id: string;
+  type: TestAssertion['type'];
+  passed: boolean;
+  message: string;
+}
 
 export interface Request {
   id: string;
@@ -13,6 +34,11 @@ export interface Request {
     type: 'none' | 'json' | 'form' | 'text';
     content: string;
   };
+  settings: {
+    timeoutMs: number;
+  };
+  envVars: EnvVariable[];
+  tests: TestAssertion[];
   createdAt: number;
 }
 
@@ -30,6 +56,11 @@ export interface Response {
   data: any;
   time: number;
   size: number;
+  testResults?: TestResult[];
+  testSummary?: {
+    passed: number;
+    failed: number;
+  };
 }
 
 export interface RequestHistoryEntry {
@@ -39,6 +70,10 @@ export interface RequestHistoryEntry {
   url: string;
   status: number;
   time: number;
+  tests?: {
+    passed: number;
+    failed: number;
+  };
   createdAt: number;
 }
 
@@ -57,27 +92,34 @@ interface ApiState {
   requestHistory: RequestHistoryEntry[];
   searchQuery: string;
   isSearchOpen: boolean;
-  
+  globalEnvVars: EnvVariable[];
+  workspaceEnvVars: EnvVariable[];
+  collectionEnvVars: Record<string, EnvVariable[]>;
+
   // Actions
   addCollection: (name: string) => void;
   updateCollection: (id: string, updates: Partial<Collection>) => void;
   deleteCollection: (id: string) => void;
-  
+
   addRequest: (collectionId: string, request: Omit<Request, 'id' | 'createdAt'>) => void;
   updateRequest: (id: string, updates: Partial<Request>) => void;
   deleteRequest: (id: string) => void;
   duplicateRequest: (id: string) => void;
-  
+
   openTab: (requestId: string) => void;
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
-  
+
   setResponse: (requestId: string, response: Response) => void;
   clearHistory: () => void;
-  
+
   setSearchQuery: (query: string) => void;
   toggleSearch: () => void;
   setSearchOpen: (open: boolean) => void;
+
+  setGlobalEnvVars: (variables: EnvVariable[]) => void;
+  setWorkspaceEnvVars: (variables: EnvVariable[]) => void;
+  setCollectionEnvVars: (collectionId: string, variables: EnvVariable[]) => void;
 }
 
 export const useApiStore = create<ApiState>()(persist((set, get) => ({
@@ -103,6 +145,11 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
         type: 'none',
         content: '',
       },
+      settings: {
+        timeoutMs: 30000,
+      },
+      envVars: [],
+      tests: [],
       createdAt: Date.now(),
     },
   ],
@@ -114,6 +161,9 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
   requestHistory: [],
   searchQuery: '',
   isSearchOpen: false,
+  globalEnvVars: [],
+  workspaceEnvVars: [],
+  collectionEnvVars: {},
 
   addCollection: (name) => {
     const id = `collection-${Date.now()}`;
@@ -155,7 +205,7 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
           : col
       ),
     }));
-    
+
     get().openTab(id);
   },
 
@@ -200,7 +250,7 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
   openTab: (requestId) => {
     const { tabs } = get();
     const existingTab = tabs.find((tab) => tab.requestId === requestId);
-    
+
     if (existingTab) {
       set({ activeTab: existingTab.id });
     } else {
@@ -218,7 +268,7 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
       const newActiveTab = state.activeTab === tabId
         ? newTabs[0]?.id || null
         : state.activeTab;
-      
+
       return {
         tabs: newTabs,
         activeTab: newActiveTab,
@@ -247,6 +297,7 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
               url: request.url,
               status: response.status,
               time: response.time,
+              tests: response.testSummary,
               createdAt: Date.now(),
             },
             ...state.requestHistory,
@@ -273,6 +324,23 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
   setSearchOpen: (open) => {
     set({ isSearchOpen: open });
   },
+
+  setGlobalEnvVars: (variables) => {
+    set({ globalEnvVars: variables });
+  },
+
+  setWorkspaceEnvVars: (variables) => {
+    set({ workspaceEnvVars: variables });
+  },
+
+  setCollectionEnvVars: (collectionId, variables) => {
+    set((state) => ({
+      collectionEnvVars: {
+        ...state.collectionEnvVars,
+        [collectionId]: variables,
+      },
+    }));
+  },
 }), {
   name: 'reqwise-store',
   partialize: (state) => ({
@@ -282,5 +350,8 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
     activeTab: state.activeTab,
     responses: state.responses,
     requestHistory: state.requestHistory,
+    globalEnvVars: state.globalEnvVars,
+    workspaceEnvVars: state.workspaceEnvVars,
+    collectionEnvVars: state.collectionEnvVars,
   }),
 }));

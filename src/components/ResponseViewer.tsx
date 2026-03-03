@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Copy, Download, Clock3, Trash2 } from 'lucide-react';
 import { useApiStore } from '../store/apiStore';
 import { Button } from './ui/button';
+import { Input } from './ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { prettifyJson, getStatusColor } from '../lib/utils';
 import { cn } from '../lib/utils';
@@ -9,6 +10,7 @@ import { cn } from '../lib/utils';
 export function ResponseViewer() {
   const { activeTab, responses, requestHistory, clearHistory } = useApiStore();
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [responseSearch, setResponseSearch] = useState('');
 
   const response = activeTab ? responses[activeTab] : null;
 
@@ -34,6 +36,12 @@ export function ResponseViewer() {
   }
 
   const responseText = typeof response.data === 'string' ? response.data : prettifyJson(response.data);
+  const filteredResponseText = !responseSearch.trim()
+    ? responseText
+    : responseText
+        .split('\n')
+        .filter((line) => line.toLowerCase().includes(responseSearch.toLowerCase()))
+        .join('\n');
   const headerText = Object.entries(response.headers).map(([k, v]) => `${k}: ${v}`).join('\n');
 
   const downloadResponse = () => {
@@ -65,6 +73,13 @@ export function ResponseViewer() {
               <span className="text-sm font-medium">Size:</span>
               <span className="text-sm text-muted-foreground">{response.size} bytes</span>
             </div>
+            {response.testSummary && (
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium">Tests:</span>
+                <span className="text-sm text-green-400">{response.testSummary.passed} passed</span>
+                <span className="text-sm text-red-400">{response.testSummary.failed} failed</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center space-x-2">
@@ -83,15 +98,22 @@ export function ResponseViewer() {
 
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="pretty" className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-4 bg-muted">
+          <TabsList className="grid w-full grid-cols-5 bg-muted">
             <TabsTrigger value="pretty">Pretty</TabsTrigger>
             <TabsTrigger value="raw">Raw</TabsTrigger>
             <TabsTrigger value="headers">Headers</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
+            <TabsTrigger value="tests">Tests</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="pretty" className="flex-1 overflow-y-auto p-4">
-            <pre className="text-sm font-mono whitespace-pre-wrap break-words bg-muted/50 p-4 rounded-lg">{responseText}</pre>
+          <TabsContent value="pretty" className="flex-1 overflow-y-auto p-4 space-y-3">
+            <Input
+              placeholder="Search response..."
+              value={responseSearch}
+              onChange={(e) => setResponseSearch(e.target.value)}
+              className="max-w-sm"
+            />
+            <pre className="text-sm font-mono whitespace-pre-wrap break-words bg-muted/50 p-4 rounded-lg">{filteredResponseText || 'No lines matched the search filter.'}</pre>
           </TabsContent>
 
           <TabsContent value="raw" className="flex-1 overflow-y-auto p-4">
@@ -120,11 +142,40 @@ export function ResponseViewer() {
                 <div key={entry.id} className="p-2 rounded border border-border bg-card text-sm flex items-center justify-between">
                   <div>
                     <div className="font-mono text-xs text-muted-foreground">{entry.method} {entry.url}</div>
-                    <div className={cn('font-medium', getStatusColor(entry.status))}>{entry.status}</div>
+                    <div className="flex items-center gap-2">
+                      <div className={cn('font-medium', getStatusColor(entry.status))}>{entry.status}</div>
+                      {entry.tests && (
+                        <div className="text-xs">
+                          <span className="text-green-400">{entry.tests.passed}p</span>
+                          <span className="mx-1 text-muted-foreground">/</span>
+                          <span className="text-red-400">{entry.tests.failed}f</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="text-xs text-muted-foreground flex items-center gap-1"><Clock3 className="h-3 w-3" />{entry.time}ms</div>
                 </div>
               ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="tests" className="flex-1 overflow-y-auto p-4">
+            <div className="space-y-2">
+              {!response.testResults || response.testResults.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No tests were configured for this request.</p>
+              ) : (
+                response.testResults.map((result) => (
+                  <div key={result.id} className="p-2 rounded border border-border bg-card text-sm flex items-center justify-between">
+                    <div className="text-muted-foreground">{result.message}</div>
+                    <span className={cn(
+                      "text-xs font-medium px-2 py-1 rounded",
+                      result.passed ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"
+                    )}>
+                      {result.passed ? "PASS" : "FAIL"}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           </TabsContent>
         </Tabs>

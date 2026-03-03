@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { ChevronRight, ChevronDown, Plus, Search, Folder, File, Copy, Trash2 } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { ChevronRight, ChevronDown, Plus, Search, Folder, File, Copy, Trash2, Upload, Download } from 'lucide-react';
 import { useApiStore } from '../store/apiStore';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { cn } from '../lib/utils';
+import { toast } from 'sonner';
 
 export function Sidebar() {
   const {
@@ -17,10 +18,12 @@ export function Sidebar() {
     setSearchQuery,
     duplicateRequest,
     deleteRequest,
+    responses,
   } = useApiStore();
 
   const [newCollectionName, setNewCollectionName] = useState('');
   const [isCreatingCollection, setIsCreatingCollection] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredRequests = requests.filter((request) =>
     request.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -42,7 +45,68 @@ export function Sidebar() {
       headers: [{ key: 'Content-Type', value: 'application/json', enabled: true }],
       queryParams: [],
       body: { type: 'none', content: '' },
+      settings: { timeoutMs: 30000 },
+      envVars: [],
+      tests: [],
     });
+  };
+
+  const handleExportWorkspace = () => {
+    const state = useApiStore.getState();
+    const payload = {
+      version: 1,
+      exportedAt: Date.now(),
+      collections: state.collections,
+      requests: state.requests,
+      globalEnvVars: state.globalEnvVars,
+      workspaceEnvVars: state.workspaceEnvVars,
+      collectionEnvVars: state.collectionEnvVars,
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reqwise-workspace-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success('Workspace exported');
+  };
+
+  const handleImportWorkspace = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed.collections) || !Array.isArray(parsed.requests)) {
+        throw new Error('Invalid workspace file');
+      }
+
+      useApiStore.setState((state) => ({
+        collections: parsed.collections,
+        requests: parsed.requests.map((request: typeof state.requests[number]) => ({
+          ...request,
+          settings: request.settings ?? { timeoutMs: 30000 },
+          envVars: request.envVars ?? [],
+          tests: request.tests ?? [],
+        })),
+        globalEnvVars: Array.isArray(parsed.globalEnvVars) ? parsed.globalEnvVars : state.globalEnvVars,
+        workspaceEnvVars: Array.isArray(parsed.workspaceEnvVars) ? parsed.workspaceEnvVars : state.workspaceEnvVars,
+        collectionEnvVars: parsed.collectionEnvVars && typeof parsed.collectionEnvVars === 'object'
+          ? parsed.collectionEnvVars
+          : state.collectionEnvVars,
+      }));
+
+      toast.success('Workspace imported');
+    } catch {
+      toast.error('Could not import workspace file');
+    } finally {
+      event.target.value = '';
+    }
   };
 
   return (
@@ -50,10 +114,26 @@ export function Sidebar() {
       <div className="p-4 border-b border-sidebar-border">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-sidebar-foreground">Collections</h2>
-          <Button size="sm" variant="ghost" onClick={() => setIsCreatingCollection(true)} className="h-8 w-8 p-0 hover:bg-sidebar-accent">
-            <Plus className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="ghost" onClick={handleExportWorkspace} className="h-8 w-8 p-0 hover:bg-sidebar-accent">
+              <Download className="h-4 w-4" />
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => fileInputRef.current?.click()} className="h-8 w-8 p-0 hover:bg-sidebar-accent">
+              <Upload className="h-4 w-4" />
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setIsCreatingCollection(true)} className="h-8 w-8 p-0 hover:bg-sidebar-accent">
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json"
+          className="hidden"
+          onChange={handleImportWorkspace}
+        />
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -117,6 +197,20 @@ export function Sidebar() {
                         <div className="flex items-center space-x-2">
                           <span className={cn('request-method text-xs', `method-${request!.method.toLowerCase()}`)}>{request!.method}</span>
                           <span className="text-sm text-sidebar-foreground truncate">{request!.name}</span>
+                          {responses[request!.id]?.testSummary && (
+                            <span
+                              className={cn(
+                                'text-[10px] px-1.5 py-0.5 rounded font-medium',
+                                responses[request!.id].testSummary?.failed
+                                  ? 'bg-red-500/15 text-red-400'
+                                  : 'bg-green-500/15 text-green-400'
+                              )}
+                            >
+                              {responses[request!.id].testSummary?.failed
+                                ? `${responses[request!.id].testSummary?.failed} failed`
+                                : `${responses[request!.id].testSummary?.passed} passed`}
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">{request!.url}</div>
                       </div>
