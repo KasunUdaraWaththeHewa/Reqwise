@@ -80,6 +80,13 @@ export function ResponseViewer() {
                 <span className="text-sm text-red-400">{response.testSummary.failed} failed</span>
               </div>
             )}
+            {response.loadTestSummary && (
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium">Load:</span>
+                <span className="text-sm text-muted-foreground">{response.loadTestSummary.iterations} req</span>
+                <span className="text-sm text-muted-foreground">{response.loadTestSummary.requestsPerSecond} rps</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center space-x-2">
@@ -98,12 +105,13 @@ export function ResponseViewer() {
 
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="pretty" className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-5 bg-muted">
+          <TabsList className="grid w-full grid-cols-6 bg-muted">
             <TabsTrigger value="pretty">Pretty</TabsTrigger>
             <TabsTrigger value="raw">Raw</TabsTrigger>
             <TabsTrigger value="headers">Headers</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
             <TabsTrigger value="tests">Tests</TabsTrigger>
+            <TabsTrigger value="load">Load Test</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pretty" className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -151,6 +159,11 @@ export function ResponseViewer() {
                           <span className="text-red-400">{entry.tests.failed}f</span>
                         </div>
                       )}
+                      {entry.loadTest && (
+                        <div className="text-xs text-muted-foreground">
+                          LT {entry.loadTest.iterations} req • {entry.loadTest.requestsPerSecond} rps • {entry.loadTest.failedRequests} failed
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="text-xs text-muted-foreground flex items-center gap-1"><Clock3 className="h-3 w-3" />{entry.time}ms</div>
@@ -177,6 +190,48 @@ export function ResponseViewer() {
                 ))
               )}
             </div>
+          </TabsContent>
+
+          <TabsContent value="load" className="flex-1 overflow-y-auto p-4">
+            {!response.loadTestSummary ? (
+              <p className="text-sm text-muted-foreground">No load test data available. Run a load test from the request editor.</p>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div className="p-3 rounded border border-border bg-card"><div className="text-muted-foreground">Iterations</div><div className="font-semibold">{response.loadTestSummary.iterations}</div></div>
+                  <div className="p-3 rounded border border-border bg-card"><div className="text-muted-foreground">Concurrency</div><div className="font-semibold">{response.loadTestSummary.concurrency}</div></div>
+                  <div className="p-3 rounded border border-border bg-card"><div className="text-muted-foreground">RPS</div><div className="font-semibold">{response.loadTestSummary.requestsPerSecond}</div></div>
+                  <div className="p-3 rounded border border-border bg-card"><div className="text-muted-foreground">Duration</div><div className="font-semibold">{response.loadTestSummary.totalDurationMs}ms</div></div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                  <div className="p-3 rounded border border-border bg-card"><div className="text-muted-foreground">Avg</div><div className="font-semibold">{response.loadTestSummary.avgResponseTimeMs}ms</div></div>
+                  <div className="p-3 rounded border border-border bg-card"><div className="text-muted-foreground">P50</div><div className="font-semibold">{response.loadTestSummary.p50ResponseTimeMs}ms</div></div>
+                  <div className="p-3 rounded border border-border bg-card"><div className="text-muted-foreground">P95</div><div className="font-semibold">{response.loadTestSummary.p95ResponseTimeMs}ms</div></div>
+                  <div className="p-3 rounded border border-border bg-card"><div className="text-muted-foreground">P99</div><div className="font-semibold">{response.loadTestSummary.p99ResponseTimeMs}ms</div></div>
+                  <div className="p-3 rounded border border-border bg-card"><div className="text-muted-foreground">Min</div><div className="font-semibold">{response.loadTestSummary.minResponseTimeMs}ms</div></div>
+                  <div className="p-3 rounded border border-border bg-card"><div className="text-muted-foreground">Max</div><div className="font-semibold">{response.loadTestSummary.maxResponseTimeMs}ms</div></div>
+                </div>
+
+                <div className="text-sm">
+                  <span className="text-green-400 font-medium">{response.loadTestSummary.successfulRequests} succeeded</span>
+                  <span className="mx-2 text-muted-foreground">/</span>
+                  <span className="text-red-400 font-medium">{response.loadTestSummary.failedRequests} failed</span>
+                </div>
+
+                <div className="space-y-2">
+                  {response.loadTestSummary.results.slice(0, 20).map((result) => (
+                    <div key={result.iteration} className="p-2 rounded border border-border bg-card text-sm flex items-center justify-between">
+                      <div className="font-mono text-xs text-muted-foreground">#{result.iteration} • status {result.status}</div>
+                      <div className="flex items-center gap-3">
+                        <span>{result.time}ms</span>
+                        {result.error && <span className="text-red-400">{result.error}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>

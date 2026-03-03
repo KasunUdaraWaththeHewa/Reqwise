@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Send, Plus, Trash2, Copy, ClipboardPaste, Wand2, XCircle } from 'lucide-react';
+import { Send, Plus, Trash2, Copy, ClipboardPaste, Wand2, XCircle, Gauge } from 'lucide-react';
 import { useApiStore, type EnvVariable, type TestAssertion } from '../store/apiStore';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { httpClient } from '../lib/httpClient';
 import { interpolateTemplate, runAssertions, toVariableMap } from '../lib/requestRuntime';
+import { runLoadTest } from '../lib/loadTesting';
 import { toast } from 'sonner';
 
 function parseKeyValueRows(text: string) {
@@ -55,6 +56,7 @@ export function RequestEditor() {
     setCollectionEnvVars,
   } = useApiStore();
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadTesting, setIsLoadTesting] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const activeRequest = activeTab
@@ -95,6 +97,45 @@ export function RequestEditor() {
     return interpolateTemplate(value, variables);
   }, [collectionScopedVars, globalEnvVars, requestEnvVars, workspaceEnvVars]);
 
+  const buildRequestPayload = useCallback(() => {
+    if (!activeRequest) return null;
+
+    const headers: Record<string, string> = {};
+    activeRequest.headers
+      .filter((h) => h.enabled && h.key && h.value)
+      .forEach((h) => {
+        headers[h.key] = interpolate(h.value);
+      });
+
+    const params: Record<string, string> = {};
+    activeRequest.queryParams
+      .filter((p) => p.enabled && p.key && p.value)
+      .forEach((p) => {
+        params[p.key] = interpolate(p.value);
+      });
+
+    let body: unknown;
+    if (activeRequest.body.type === 'json' && activeRequest.body.content) {
+      const content = interpolate(activeRequest.body.content);
+      try {
+        body = JSON.parse(content);
+      } catch {
+        body = content;
+      }
+    } else if (activeRequest.body.type === 'text') {
+      body = interpolate(activeRequest.body.content);
+    }
+
+    return {
+      method: activeRequest.method,
+      url: interpolate(activeRequest.url),
+      headers,
+      params,
+      body,
+      timeoutMs: requestSettings.timeoutMs,
+    };
+  }, [activeRequest, interpolate, requestSettings.timeoutMs]);
+
   const handleSendRequest = useCallback(async () => {
     if (!activeRequest) return;
 
@@ -102,39 +143,11 @@ export function RequestEditor() {
     abortControllerRef.current = controller;
     setIsLoading(true);
     try {
-      const headers: Record<string, string> = {};
-      activeRequest.headers
-        .filter((h) => h.enabled && h.key && h.value)
-        .forEach((h) => {
-          headers[h.key] = interpolate(h.value);
-        });
-
-      const params: Record<string, string> = {};
-      activeRequest.queryParams
-        .filter((p) => p.enabled && p.key && p.value)
-        .forEach((p) => {
-          params[p.key] = interpolate(p.value);
-        });
-
-      let body: unknown;
-      if (activeRequest.body.type === 'json' && activeRequest.body.content) {
-        const content = interpolate(activeRequest.body.content);
-        try {
-          body = JSON.parse(content);
-        } catch {
-          body = content;
-        }
-      } else if (activeRequest.body.type === 'text') {
-        body = interpolate(activeRequest.body.content);
-      }
+      const payload = buildRequestPayload();
+      if (!payload) return;
 
       const response = await httpClient.request({
-        method: activeRequest.method,
-        url: interpolate(activeRequest.url),
-        headers,
-        params,
-        body,
-        timeoutMs: requestSettings.timeoutMs,
+        ...payload,
         signal: controller.signal,
       });
 
@@ -161,7 +174,7 @@ export function RequestEditor() {
       setIsLoading(false);
       abortControllerRef.current = null;
     }
-  }, [activeRequest, interpolate, requestSettings.timeoutMs, requestTests, setResponse]);
+  }, [activeRequest, buildRequestPayload, requestTests, setResponse]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -294,6 +307,31 @@ export function RequestEditor() {
     updateField('tests', requestTests.filter((_, i) => i !== index));
   };
 
+  const handleRunLoadTest = async () => {
+    if (!activeRequest || isLoadTesting) return;
+
+    setIsLoadTesting(true);
+    try {
+      const summary = await runLoadTest(activeRequest, interpolate);
+      const payload = buildRequestPayload();
+      if (!payload) return;
+
+      const latestResponse = await httpClient.request(payload);
+      const { results, summary: testSummary } = runAssertions(latestResponse, requestTests);
+
+      setResponse(activeRequest.id, {
+        ...latestResponse,
+        testResults: results,
+        testSummary,
+        loadTestSummary: summary,
+      });
+      toast.success(`Load test completed: ${summary.iterations} requests at concurrency ${summary.concurrency}`);
+    } catch {
+      toast.error('Load test failed');
+    } finally {
+      setIsLoadTesting(false);
+    }
+  };
 
   const cancelRequest = () => {
     abortControllerRef.current?.abort();
@@ -359,7 +397,12 @@ export function RequestEditor() {
             </Button>
           )}
 
-          <Button onClick={handleSendRequest} disabled={isLoading || !activeRequest.url}>
+          <Button variant="outline" onClick={handleRunLoadTest} disabled={isLoading || isLoadTesting || !activeRequest.url}>
+            {isLoadTesting ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-foreground border-t-transparent" /> : <Gauge className="h-4 w-4" />}
+            <span className="ml-2">Load Test</span>
+          </Button>
+
+          <Button onClick={handleSendRequest} disabled={isLoading || isLoadTesting || !activeRequest.url}>
             {isLoading ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-background border-t-transparent" /> : <Send className="h-4 w-4" />}
             <span className="ml-2">Send</span>
           </Button>
@@ -368,13 +411,14 @@ export function RequestEditor() {
 
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="params" className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-6 bg-muted">
+          <TabsList className="grid w-full grid-cols-7 bg-muted">
             <TabsTrigger value="params">Query Params ({enabledParamsCount})</TabsTrigger>
             <TabsTrigger value="headers">Headers ({enabledHeadersCount})</TabsTrigger>
             <TabsTrigger value="body">Body</TabsTrigger>
             <TabsTrigger value="auth">Auth</TabsTrigger>
             <TabsTrigger value="env">Environment</TabsTrigger>
             <TabsTrigger value="tests">Tests ({requestTests.length})</TabsTrigger>
+            <TabsTrigger value="load">Load</TabsTrigger>
           </TabsList>
 
           <TabsContent value="params" className="flex-1 p-4 overflow-y-auto space-y-2">
@@ -532,6 +576,66 @@ export function RequestEditor() {
                 <Button size="sm" variant="ghost" onClick={() => removeTest(index)} className="p-2 hover:bg-destructive/20"><Trash2 className="h-4 w-4" /></Button>
               </div>
             ))}
+          </TabsContent>
+
+          <TabsContent value="load" className="flex-1 p-4 overflow-y-auto space-y-4">
+            <div className="rounded-md border border-border p-4 bg-card space-y-4">
+              <div>
+                <h3 className="text-sm font-medium">Load testing</h3>
+                <p className="text-xs text-muted-foreground">Run repeated requests against this endpoint and capture latency + throughput metrics.</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">Iterations</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={requestSettings.loadTest?.iterations ?? 10}
+                    onChange={(e) => updateField('settings', {
+                      ...requestSettings,
+                      loadTest: {
+                        ...requestSettings.loadTest,
+                        iterations: Math.max(1, Number(e.target.value) || 1),
+                      },
+                    })}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Concurrency</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={requestSettings.loadTest?.concurrency ?? 2}
+                    onChange={(e) => updateField('settings', {
+                      ...requestSettings,
+                      loadTest: {
+                        ...requestSettings.loadTest,
+                        concurrency: Math.max(1, Number(e.target.value) || 1),
+                      },
+                    })}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Delay (ms)</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={requestSettings.loadTest?.delayMs ?? 0}
+                    onChange={(e) => updateField('settings', {
+                      ...requestSettings,
+                      loadTest: {
+                        ...requestSettings.loadTest,
+                        delayMs: Math.max(0, Number(e.target.value) || 0),
+                      },
+                    })}
+                  />
+                </div>
+              </div>
+              <Button onClick={handleRunLoadTest} disabled={isLoadTesting || isLoading || !activeRequest.url}>
+                <Gauge className="h-4 w-4 mr-1" />
+                {isLoadTesting ? 'Running load test...' : 'Run load test'}
+              </Button>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
