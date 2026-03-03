@@ -17,6 +17,7 @@ export function Sidebar() {
     setSearchQuery,
     duplicateRequest,
     deleteRequest,
+    responses,
   } = useApiStore();
 
   const [newCollectionName, setNewCollectionName] = useState('');
@@ -42,6 +43,8 @@ export function Sidebar() {
       headers: [{ key: 'Content-Type', value: 'application/json', enabled: true }],
       queryParams: [],
       body: { type: 'none', content: '' },
+      envVars: [],
+      tests: [],
     });
   };
 
@@ -117,6 +120,20 @@ export function Sidebar() {
                         <div className="flex items-center space-x-2">
                           <span className={cn('request-method text-xs', `method-${request!.method.toLowerCase()}`)}>{request!.method}</span>
                           <span className="text-sm text-sidebar-foreground truncate">{request!.name}</span>
+                          {responses[request!.id]?.testSummary && (
+                            <span
+                              className={cn(
+                                'text-[10px] px-1.5 py-0.5 rounded font-medium',
+                                responses[request!.id].testSummary?.failed
+                                  ? 'bg-red-500/15 text-red-400'
+                                  : 'bg-green-500/15 text-green-400'
+                              )}
+                            >
+                              {responses[request!.id].testSummary?.failed
+                                ? `${responses[request!.id].testSummary?.failed} failed`
+                                : `${responses[request!.id].testSummary?.passed} passed`}
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">{request!.url}</div>
                       </div>
