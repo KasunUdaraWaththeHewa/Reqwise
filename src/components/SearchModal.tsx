@@ -1,5 +1,4 @@
-
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Search, File } from 'lucide-react';
 import { useApiStore } from '../store/apiStore';
 import { Dialog, DialogContent } from './ui/dialog';
@@ -13,10 +12,12 @@ export function SearchModal() {
     searchQuery,
     setSearchQuery,
     toggleSearch,
+    setSearchOpen,
     openTab,
   } = useApiStore();
-  
+
   const inputRef = useRef<HTMLInputElement>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   const filteredRequests = requests.filter((request) =>
     request.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -24,39 +25,57 @@ export function SearchModal() {
     request.method.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleSelectRequest = useCallback((requestId: string) => {
+    openTab(requestId);
+    setSearchOpen(false);
+    setSearchQuery('');
+  }, [openTab, setSearchOpen, setSearchQuery]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         toggleSearch();
       }
-      
-      if (e.key === 'Escape' && isSearchOpen) {
-        toggleSearch();
+
+      if (!isSearchOpen) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex((prev) => Math.min(prev + 1, Math.max(filteredRequests.length - 1, 0)));
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex((prev) => Math.max(prev - 1, 0));
+      }
+
+      if (e.key === 'Enter' && filteredRequests[selectedIndex]) {
+        e.preventDefault();
+        handleSelectRequest(filteredRequests[selectedIndex].id);
+      }
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setSearchOpen(false);
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isSearchOpen, toggleSearch]);
+  }, [filteredRequests, handleSelectRequest, isSearchOpen, selectedIndex, setSearchOpen, toggleSearch]);
 
   useEffect(() => {
     if (isSearchOpen && inputRef.current) {
       inputRef.current.focus();
+      setSelectedIndex(0);
     }
   }, [isSearchOpen]);
 
-  const handleSelectRequest = (requestId: string) => {
-    openTab(requestId);
-    toggleSearch();
-    setSearchQuery('');
-  };
-
   return (
-    <Dialog open={isSearchOpen} onOpenChange={toggleSearch}>
+    <Dialog open={isSearchOpen} onOpenChange={setSearchOpen}>
       <DialogContent className="max-w-2xl p-0 bg-popover border-border">
         <div className="flex flex-col">
-          {/* Search Input */}
           <div className="flex items-center border-b border-border p-4">
             <Search className="h-5 w-5 text-muted-foreground mr-3" />
             <Input
@@ -68,14 +87,16 @@ export function SearchModal() {
             />
           </div>
 
-          {/* Results */}
           <div className="max-h-96 overflow-y-auto">
             {filteredRequests.length > 0 ? (
               <div className="p-2">
-                {filteredRequests.map((request) => (
+                {filteredRequests.map((request, index) => (
                   <div
                     key={request.id}
-                    className="flex items-center space-x-3 p-3 rounded-lg hover:bg-accent cursor-pointer group"
+                    className={cn(
+                      'flex items-center space-x-3 p-3 rounded-lg cursor-pointer group',
+                      selectedIndex === index ? 'bg-accent' : 'hover:bg-accent'
+                    )}
                     onClick={() => handleSelectRequest(request.id)}
                   >
                     <File className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -86,9 +107,7 @@ export function SearchModal() {
                         </span>
                         <span className="font-medium text-sm">{request.name}</span>
                       </div>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {request.url}
-                      </p>
+                      <p className="text-xs text-muted-foreground truncate">{request.url}</p>
                     </div>
                   </div>
                 ))}
