@@ -32,6 +32,7 @@ function getJsonPathValue(source: unknown, path: string): unknown {
 }
 
 export function runAssertions(response: Response, tests: TestAssertion[]): { results: TestResult[]; summary: { passed: number; failed: number } } {
+  const responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
   const results = tests
     .filter((test) => test.enabled)
     .map<TestResult>((test) => {
@@ -58,6 +59,66 @@ export function runAssertions(response: Response, tests: TestAssertion[]): { res
           message: passed
             ? `Response time ${response.time}ms < ${expected}ms`
             : `Expected response time < ${test.expectedValue || 'N/A'}ms, got ${response.time}ms`,
+        };
+      }
+
+      if (test.type === 'bodyContains') {
+        const passed = responseText.toLowerCase().includes((test.expectedValue || '').toLowerCase());
+        return {
+          id: test.id,
+          type: test.type,
+          passed,
+          message: passed
+            ? `Body contains '${test.expectedValue}'`
+            : `Body does not contain '${test.expectedValue || '(empty)'}'`,
+        };
+      }
+
+      if (test.type === 'bodyMatchesRegex') {
+        try {
+          const regex = new RegExp(test.expectedValue);
+          const passed = regex.test(responseText);
+          return {
+            id: test.id,
+            type: test.type,
+            passed,
+            message: passed ? `Body matches /${test.expectedValue}/` : `Body does not match /${test.expectedValue}/`,
+          };
+        } catch {
+          return {
+            id: test.id,
+            type: test.type,
+            passed: false,
+            message: `Invalid regex: ${test.expectedValue}`,
+          };
+        }
+      }
+
+      if (test.type === 'headerEquals') {
+        const [headerName, expected] = test.expectedValue.split('=').map((part) => part?.trim());
+        const actual = headerName ? response.headers[headerName.toLowerCase()] ?? response.headers[headerName] : undefined;
+        const passed = Boolean(headerName) && actual === (expected ?? '');
+        return {
+          id: test.id,
+          type: test.type,
+          passed,
+          message: passed
+            ? `Header ${headerName} equals '${expected ?? ''}'`
+            : `Expected header in format Header=Value and exact match`,
+        };
+      }
+
+      if (test.type === 'jsonPathEquals') {
+        const [path, expected] = test.expectedValue.split('=').map((part) => part?.trim());
+        const value = getJsonPathValue(response.data, path ?? '');
+        const passed = String(value) === (expected ?? '');
+        return {
+          id: test.id,
+          type: test.type,
+          passed,
+          message: passed
+            ? `Path '${path}' equals '${expected}'`
+            : `Expected ${path || '(empty path)'}=${expected ?? ''}, got ${String(value)}`,
         };
       }
 
