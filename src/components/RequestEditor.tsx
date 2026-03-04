@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { httpClient } from '../lib/httpClient';
 import { interpolateTemplate, runAssertions, toVariableMap } from '../lib/requestRuntime';
+import { buildCurlSnippet, buildPythonSnippet } from '../lib/snippets';
 import { runLoadTest } from '../lib/loadTesting';
 import { toast } from 'sonner';
 
@@ -31,6 +32,10 @@ const testTypeLabel: Record<TestAssertion['type'], string> = {
   statusEquals: 'Status equals',
   responseTimeLessThan: 'Response time < (ms)',
   jsonPathExists: 'JSON path exists',
+  bodyContains: 'Body contains text',
+  headerEquals: 'Header equals (Header=Value)',
+  jsonPathEquals: 'JSON path equals (path=value)',
+  bodyMatchesRegex: 'Body matches regex',
 };
 
 function newEnvVar(): EnvVariable {
@@ -123,15 +128,37 @@ export function RequestEditor() {
       });
 
     let body: unknown;
-    if (activeRequest.body.type === 'json' && activeRequest.body.content) {
-      const content = interpolate(activeRequest.body.content);
+    const content = interpolate(activeRequest.body.content || '');
+    if (activeRequest.body.type === 'json' && content) {
       try {
         body = JSON.parse(content);
       } catch {
         body = content;
       }
     } else if (activeRequest.body.type === 'text') {
-      body = interpolate(activeRequest.body.content);
+      body = content;
+    } else if (activeRequest.body.type === 'x-www-form-urlencoded') {
+      const pairs = content.split(/\r?\n/).filter(Boolean).map((line) => line.split('='));
+      body = Object.fromEntries(pairs.map(([k, ...v]) => [k?.trim(), v.join('=').trim()]));
+      headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    } else if (activeRequest.body.type === 'form' || activeRequest.body.type === 'multipart') {
+      const formData = new FormData();
+      content.split(/\r?\n/).filter(Boolean).forEach((line) => {
+        const [k, ...v] = line.split('=');
+        if (k) formData.append(k.trim(), v.join('=').trim());
+      });
+      body = formData;
+    }
+
+    if (activeRequest.auth?.type === 'bearer' && activeRequest.auth.token) {
+      headers.Authorization = `Bearer ${interpolate(activeRequest.auth.token)}`;
+    }
+    if (activeRequest.auth?.type === 'basic') {
+      const encoded = btoa(`${interpolate(activeRequest.auth.username)}:${interpolate(activeRequest.auth.password)}`);
+      headers.Authorization = `Basic ${encoded}`;
+    }
+    if (activeRequest.auth?.type === 'apiKey' && activeRequest.auth.apiKeyHeader) {
+      headers[activeRequest.auth.apiKeyHeader] = interpolate(activeRequest.auth.apiKeyValue);
     }
 
     return {
@@ -388,6 +415,21 @@ runScenario(
 `;
   }, [activeRequest, buildRequestPayload, requestSettings.automation?.intervalMs, requestSettings.automation?.maxRuns]);
 
+
+  const generatedCurlScript = useMemo(() => {
+    if (!activeRequest) return '';
+    const payload = buildRequestPayload();
+    if (!payload) return '';
+    return buildCurlSnippet(activeRequest, payload.url, payload.headers, payload.body);
+  }, [activeRequest, buildRequestPayload]);
+
+  const generatedPythonScript = useMemo(() => {
+    if (!activeRequest) return '';
+    const payload = buildRequestPayload();
+    if (!payload) return '';
+    return buildPythonSnippet(activeRequest, payload.url, payload.headers, payload.params, payload.body);
+  }, [activeRequest, buildRequestPayload]);
+
   const copyGeneratedScript = async () => {
     if (!generatedScript) return;
     try {
@@ -637,6 +679,8 @@ runScenario(
                   <SelectItem value="json">JSON</SelectItem>
                   <SelectItem value="text">Text</SelectItem>
                   <SelectItem value="form">Form Data</SelectItem>
+                  <SelectItem value="x-www-form-urlencoded">x-www-form-urlencoded</SelectItem>
+                  <SelectItem value="multipart">Multipart</SelectItem>
                 </SelectContent>
               </Select>
               {activeRequest.body.type === 'json' && (
@@ -655,18 +699,40 @@ runScenario(
           </TabsContent>
 
           <TabsContent value="auth" className="flex-1 p-4 overflow-y-auto">
-            <div className="rounded-md border border-border p-4 bg-card space-y-2 text-sm">
-              <p className="font-medium">Auth helper</p>
-              <p className="text-muted-foreground">Quickly add common auth headers in the Headers tab:</p>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => updateField('headers', [...activeRequest.headers, { key: 'Authorization', value: 'Bearer ', enabled: true }])}>Bearer token</Button>
-                <Button size="sm" variant="outline" onClick={() => updateField('headers', [...activeRequest.headers, { key: 'Authorization', value: 'Basic ', enabled: true }])}>Basic auth</Button>
-                <Button size="sm" variant="outline" onClick={() => updateField('headers', [...activeRequest.headers, { key: 'X-API-Key', value: '', enabled: true }])}>API key</Button>
-              </div>
+            <div className="rounded-md border border-border p-4 bg-card space-y-3 text-sm">
+              <p className="font-medium">Auth configuration</p>
+              <Select value={activeRequest.auth?.type ?? 'none'} onValueChange={(value) => updateField('auth', { ...activeRequest.auth, type: value })}>
+                <SelectTrigger className="w-60"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="bearer">Bearer token</SelectItem>
+                  <SelectItem value="basic">Basic auth</SelectItem>
+                  <SelectItem value="apiKey">API key header</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {activeRequest.auth?.type === 'bearer' && (
+                <Input placeholder="Token / {{token}}" value={activeRequest.auth.token} onChange={(e) => updateField('auth', { ...activeRequest.auth, token: e.target.value })} className="font-mono text-xs" />
+              )}
+              {activeRequest.auth?.type === 'basic' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <Input placeholder="Username" value={activeRequest.auth.username} onChange={(e) => updateField('auth', { ...activeRequest.auth, username: e.target.value })} className="font-mono text-xs" />
+                  <Input placeholder="Password" type="password" value={activeRequest.auth.password} onChange={(e) => updateField('auth', { ...activeRequest.auth, password: e.target.value })} className="font-mono text-xs" />
+                </div>
+              )}
+              {activeRequest.auth?.type === 'apiKey' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <Input placeholder="Header name" value={activeRequest.auth.apiKeyHeader} onChange={(e) => updateField('auth', { ...activeRequest.auth, apiKeyHeader: e.target.value })} className="font-mono text-xs" />
+                  <Input placeholder="API key value" value={activeRequest.auth.apiKeyValue} onChange={(e) => updateField('auth', { ...activeRequest.auth, apiKeyValue: e.target.value })} className="font-mono text-xs" />
+                </div>
+              )}
             </div>
           </TabsContent>
 
           <TabsContent value="env" className="flex-1 p-3 overflow-y-auto space-y-3 text-xs">
+            <div className="rounded-md border border-border p-2 text-xs bg-muted/40">
+              <p>Interpolation preview: <span className="font-mono">{interpolate(activeRequest.url)}</span></p>
+            </div>
             {envSections.map((section) => (
               <div key={section.scope} className="rounded-md border border-border p-3 space-y-2">
                 <div className="flex items-center justify-between">
@@ -731,6 +797,10 @@ runScenario(
                     <SelectItem value="statusEquals">{testTypeLabel.statusEquals}</SelectItem>
                     <SelectItem value="responseTimeLessThan">{testTypeLabel.responseTimeLessThan}</SelectItem>
                     <SelectItem value="jsonPathExists">{testTypeLabel.jsonPathExists}</SelectItem>
+                    <SelectItem value="bodyContains">{testTypeLabel.bodyContains}</SelectItem>
+                    <SelectItem value="headerEquals">{testTypeLabel.headerEquals}</SelectItem>
+                    <SelectItem value="jsonPathEquals">{testTypeLabel.jsonPathEquals}</SelectItem>
+                    <SelectItem value="bodyMatchesRegex">{testTypeLabel.bodyMatchesRegex}</SelectItem>
                   </SelectContent>
                 </Select>
                 <Input
@@ -893,7 +963,17 @@ runScenario(
                   <Copy className="h-4 w-4 mr-1" />{scriptCopied ? 'Copied!' : 'Copy script'}
                 </Button>
               </div>
-              <Textarea value={generatedScript} readOnly className="min-h-[360px] font-mono text-xs" />
+              <Textarea value={generatedScript} readOnly className="min-h-52 font-mono text-xs" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <p className="mb-1 text-muted-foreground">cURL</p>
+                  <Textarea value={generatedCurlScript} readOnly className="min-h-44 font-mono text-xs" />
+                </div>
+                <div>
+                  <p className="mb-1 text-muted-foreground">Python requests</p>
+                  <Textarea value={generatedPythonScript} readOnly className="min-h-44 font-mono text-xs" />
+                </div>
+              </div>
             </div>
           </TabsContent>
         </Tabs>

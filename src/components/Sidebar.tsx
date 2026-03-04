@@ -1,4 +1,6 @@
 import React, { useRef, useState } from 'react';
+import { httpClient } from '../lib/httpClient';
+import { parseCurlToRequest, parseOpenApiSpec, parsePostmanCollection, normalizeRequest } from '../lib/importExport';
 import { ChevronRight, ChevronDown, Plus, Search, Folder, File, Copy, Trash2, Upload, Download } from 'lucide-react';
 import { useApiStore } from '../store/apiStore';
 import { Button } from './ui/button';
@@ -19,6 +21,8 @@ export function Sidebar() {
     duplicateRequest,
     deleteRequest,
     responses,
+    setResponse,
+    addRunReport,
   } = useApiStore();
 
   const [newCollectionName, setNewCollectionName] = useState('');
@@ -50,9 +54,88 @@ export function Sidebar() {
         loadTest: { iterations: 10, concurrency: 2, delayMs: 0 },
         automation: { enabled: false, intervalMs: 60000, maxRuns: 0, stopOnFailure: false },
       },
+      auth: { type: 'none', token: '', username: '', password: '', apiKeyHeader: 'X-API-Key', apiKeyValue: '' },
       envVars: [],
       tests: [],
     });
+  };
+
+
+  const handleRunCollection = async (collectionId: string) => {
+    const collection = collections.find((c) => c.id === collectionId);
+    if (!collection) return;
+
+    let passed = 0;
+    let failed = 0;
+    let totalTime = 0;
+
+    for (const requestId of collection.requests) {
+      const req = requests.find((r) => r.id === requestId);
+      if (!req) continue;
+      try {
+        const response = await httpClient.request({ method: req.method, url: req.url, headers: Object.fromEntries(req.headers.filter((h) => h.enabled).map((h) => [h.key, h.value])) });
+        setResponse(req.id, response);
+        totalTime += response.time;
+        if (response.status >= 200 && response.status < 400) passed += 1;
+        else failed += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+
+    addRunReport({
+      collectionId: collection.id,
+      collectionName: collection.name,
+      totalRequests: collection.requests.length,
+      passedRequests: passed,
+      failedRequests: failed,
+      avgResponseTimeMs: collection.requests.length ? Math.round(totalTime / collection.requests.length) : 0,
+    });
+
+    toast.success(`Collection run complete: ${passed} passed, ${failed} failed`);
+  };
+
+  const handleSmartImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      let parsedJson: any = null;
+      try { parsedJson = JSON.parse(text); } catch {}
+
+      if (parsedJson?.collections && parsedJson?.requests) {
+        useApiStore.setState((state) => ({
+          ...state,
+          collections: parsedJson.collections,
+          requests: parsedJson.requests.map((req: any, idx: number) => normalizeRequest(req, idx)),
+        }));
+        toast.success('Reqwise workspace imported');
+      } else {
+        const postman = parsedJson ? parsePostmanCollection(parsedJson) : null;
+        const openapi = parsedJson ? parseOpenApiSpec(parsedJson) : null;
+        if (postman || openapi) {
+          const imported = postman ?? openapi;
+          useApiStore.setState((state) => ({
+            ...state,
+            collections: [...state.collections, ...imported!.collections],
+            requests: [...state.requests, ...imported!.requests],
+          }));
+          toast.success(postman ? 'Postman collection imported' : 'OpenAPI spec imported');
+        } else if (/^curl\s/i.test(text.trim())) {
+          const collection = collections[0];
+          if (!collection) throw new Error('No collection available');
+          addRequest(collection.id, normalizeRequest(parseCurlToRequest(text), 0));
+          toast.success('cURL imported into first collection');
+        } else {
+          throw new Error('Unsupported import format');
+        }
+      }
+    } catch {
+      toast.error('Could not import file. Supported: Reqwise JSON, Postman, OpenAPI, cURL text');
+    } finally {
+      event.target.value = '';
+    }
   };
 
   const handleExportWorkspace = () => {
@@ -77,53 +160,6 @@ export function Sidebar() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     toast.success('Workspace exported');
-  };
-
-  const handleImportWorkspace = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      if (!Array.isArray(parsed.collections) || !Array.isArray(parsed.requests)) {
-        throw new Error('Invalid workspace file');
-      }
-
-      useApiStore.setState((state) => ({
-        collections: parsed.collections,
-        requests: parsed.requests.map((request: typeof state.requests[number]) => ({
-          ...request,
-          settings: {
-            timeoutMs: request.settings?.timeoutMs ?? 30000,
-            loadTest: {
-              iterations: request.settings?.loadTest?.iterations ?? 10,
-              concurrency: request.settings?.loadTest?.concurrency ?? 2,
-              delayMs: request.settings?.loadTest?.delayMs ?? 0,
-            },
-            automation: {
-              enabled: request.settings?.automation?.enabled ?? false,
-              intervalMs: request.settings?.automation?.intervalMs ?? 60000,
-              maxRuns: request.settings?.automation?.maxRuns ?? 0,
-              stopOnFailure: request.settings?.automation?.stopOnFailure ?? false,
-            },
-          },
-          envVars: request.envVars ?? [],
-          tests: request.tests ?? [],
-        })),
-        globalEnvVars: Array.isArray(parsed.globalEnvVars) ? parsed.globalEnvVars : state.globalEnvVars,
-        workspaceEnvVars: Array.isArray(parsed.workspaceEnvVars) ? parsed.workspaceEnvVars : state.workspaceEnvVars,
-        collectionEnvVars: parsed.collectionEnvVars && typeof parsed.collectionEnvVars === 'object'
-          ? parsed.collectionEnvVars
-          : state.collectionEnvVars,
-      }));
-
-      toast.success('Workspace imported');
-    } catch {
-      toast.error('Could not import workspace file');
-    } finally {
-      event.target.value = '';
-    }
   };
 
   return (
@@ -157,7 +193,7 @@ export function Sidebar() {
           type="file"
           accept="application/json"
           className="hidden"
-          onChange={handleImportWorkspace}
+          onChange={handleSmartImport}
         />
 
         <div className="relative">
@@ -200,17 +236,20 @@ export function Sidebar() {
                   <Folder className="h-4 w-4 text-blue-400" />
                   <span className="text-sm font-medium text-sidebar-foreground truncate">{collection.name}</span>
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleAddRequest(collection.id);
-                  }}
-                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-sidebar-accent"
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                  <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleRunCollection(collection.id); }} className="h-6 px-2 text-[10px]">Run</Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAddRequest(collection.id);
+                    }}
+                    className="h-6 w-6 p-0 hover:bg-sidebar-accent"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
 
               {collection.isExpanded && (

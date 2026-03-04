@@ -8,7 +8,7 @@ import { prettifyJson, getStatusColor } from '../lib/utils';
 import { cn } from '../lib/utils';
 
 export function ResponseViewer() {
-  const { activeTab, responses, requestHistory, clearHistory } = useApiStore();
+  const { activeTab, responses, requestHistory, clearHistory, runReports } = useApiStore();
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [responseSearch, setResponseSearch] = useState('');
 
@@ -112,6 +112,8 @@ export function ResponseViewer() {
             <TabsTrigger className="shrink-0" value="history">History</TabsTrigger>
             <TabsTrigger className="shrink-0" value="tests">Tests</TabsTrigger>
             <TabsTrigger className="shrink-0" value="load">Load Test</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="diff">Diff</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="reports">Reports</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pretty" className="flex-1 overflow-y-auto p-3 space-y-2 text-xs">
@@ -232,6 +234,35 @@ export function ResponseViewer() {
                 </div>
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="diff" className="flex-1 overflow-y-auto p-3 text-xs space-y-2">
+            {!response.previousData ? (
+              <p className="text-xs text-muted-foreground">No previous response snapshot for diff yet. Send this request again.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <p className="text-muted-foreground mb-1">Previous</p>
+                  <pre className="text-xs font-mono whitespace-pre-wrap break-words bg-muted/50 p-3 rounded-lg">{typeof response.previousData === 'string' ? response.previousData : prettifyJson(response.previousData)}</pre>
+                </div>
+                <div>
+                  <p className="text-muted-foreground mb-1">Current</p>
+                  <pre className="text-xs font-mono whitespace-pre-wrap break-words bg-muted/50 p-3 rounded-lg">{responseText}</pre>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="reports" className="flex-1 overflow-y-auto p-3 text-xs space-y-2">
+            {runReports.length === 0 ? <p className="text-muted-foreground">No collection run reports yet.</p> : runReports.map((report) => (
+              <div key={report.id} className="p-2 rounded border border-border bg-card flex items-center justify-between">
+                <div>
+                  <div className="font-medium">{report.collectionName}</div>
+                  <div className="text-muted-foreground">{report.passedRequests} passed / {report.failedRequests} failed • avg {report.avgResponseTimeMs}ms</div>
+                </div>
+                <div className="text-muted-foreground">{new Date(report.createdAt).toLocaleTimeString()}</div>
+              </div>
+            ))}
           </TabsContent>
         </Tabs>
       </div>

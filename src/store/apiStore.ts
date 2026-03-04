@@ -13,7 +13,7 @@ export interface EnvVariable {
 
 export interface TestAssertion {
   id: string;
-  type: 'statusEquals' | 'responseTimeLessThan' | 'jsonPathExists';
+  type: 'statusEquals' | 'responseTimeLessThan' | 'jsonPathExists' | 'bodyContains' | 'headerEquals' | 'jsonPathEquals' | 'bodyMatchesRegex';
   enabled: boolean;
   expectedValue: string;
 }
@@ -58,8 +58,16 @@ export interface Request {
   headers: { key: string; value: string; enabled: boolean }[];
   queryParams: { key: string; value: string; enabled: boolean }[];
   body: {
-    type: 'none' | 'json' | 'form' | 'text';
+    type: 'none' | 'json' | 'form' | 'text' | 'x-www-form-urlencoded' | 'multipart';
     content: string;
+  };
+  auth: {
+    type: 'none' | 'bearer' | 'basic' | 'apiKey';
+    token: string;
+    username: string;
+    password: string;
+    apiKeyHeader: string;
+    apiKeyValue: string;
   };
   settings: {
     timeoutMs: number;
@@ -100,6 +108,7 @@ export interface Response {
     failed: number;
   };
   loadTestSummary?: LoadTestSummary;
+  previousData?: unknown;
 }
 
 export interface RequestHistoryEntry {
@@ -121,6 +130,18 @@ export interface RequestHistoryEntry {
   createdAt: number;
 }
 
+
+export interface CollectionRunReport {
+  id: string;
+  collectionId: string;
+  collectionName: string;
+  createdAt: number;
+  totalRequests: number;
+  passedRequests: number;
+  failedRequests: number;
+  avgResponseTimeMs: number;
+}
+
 interface Tab {
   id: string;
   requestId: string;
@@ -139,6 +160,7 @@ interface ApiState {
   globalEnvVars: EnvVariable[];
   workspaceEnvVars: EnvVariable[];
   collectionEnvVars: Record<string, EnvVariable[]>;
+  runReports: CollectionRunReport[];
 
   // Actions
   addCollection: (name: string) => void;
@@ -164,6 +186,7 @@ interface ApiState {
   setGlobalEnvVars: (variables: EnvVariable[]) => void;
   setWorkspaceEnvVars: (variables: EnvVariable[]) => void;
   setCollectionEnvVars: (collectionId: string, variables: EnvVariable[]) => void;
+  addRunReport: (report: Omit<CollectionRunReport, 'id' | 'createdAt'>) => void;
 }
 
 export const useApiStore = create<ApiState>()(persist((set, get) => ({
@@ -188,6 +211,14 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
       body: {
         type: 'none',
         content: '',
+      },
+      auth: {
+        type: 'none',
+        token: '',
+        username: '',
+        password: '',
+        apiKeyHeader: 'X-API-Key',
+        apiKeyValue: '',
       },
       settings: {
         timeoutMs: 30000,
@@ -219,6 +250,7 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
   globalEnvVars: [],
   workspaceEnvVars: [],
   collectionEnvVars: {},
+  runReports: [],
 
   addCollection: (name) => {
     const id = `collection-${Date.now()}`;
@@ -341,7 +373,10 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
     set((state) => ({
       responses: {
         ...state.responses,
-        [requestId]: response,
+        [requestId]: {
+          ...response,
+          previousData: state.responses[requestId]?.data,
+        },
       },
       requestHistory: request
         ? [
@@ -403,6 +438,19 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
       },
     }));
   },
+
+  addRunReport: (report) => {
+    set((state) => ({
+      runReports: [
+        {
+          id: `report-${Date.now()}`,
+          createdAt: Date.now(),
+          ...report,
+        },
+        ...state.runReports,
+      ].slice(0, 30),
+    }));
+  },
 }), {
   name: 'reqwise-store',
   storage: createJSONStorage(() => indexedDbStorage),
@@ -416,5 +464,6 @@ export const useApiStore = create<ApiState>()(persist((set, get) => ({
     globalEnvVars: state.globalEnvVars,
     workspaceEnvVars: state.workspaceEnvVars,
     collectionEnvVars: state.collectionEnvVars,
+    runReports: state.runReports,
   }),
 }));

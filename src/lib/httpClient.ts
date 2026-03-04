@@ -58,22 +58,26 @@ export const httpClient = {
         });
       }
 
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      };
+      const headers: HeadersInit = { ...options.headers };
 
       let body: string | undefined;
       if (options.body && ['POST', 'PUT', 'PATCH'].includes(options.method)) {
-        body = typeof options.body === 'string'
-          ? options.body
-          : JSON.stringify(options.body);
+        if (options.body instanceof FormData) {
+          body = undefined;
+        } else {
+          if (!Object.keys(headers).some((key) => key.toLowerCase() === 'content-type')) {
+            (headers as Record<string, string>)['Content-Type'] = 'application/json';
+          }
+          body = typeof options.body === 'string'
+            ? options.body
+            : JSON.stringify(options.body);
+        }
       }
 
       const response = await fetch(url.toString(), {
         method: options.method,
         headers,
-        body,
+        body: options.body instanceof FormData ? options.body : body,
         signal: mergeSignals(options.signal, options.timeoutMs),
       });
 
