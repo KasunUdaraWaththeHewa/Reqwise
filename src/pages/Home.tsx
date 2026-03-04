@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Clock3, Command, Database, Rocket, ShieldCheck, Zap } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Clock3, Command, Database, Rocket, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,21 @@ const coreFeatures = [
   },
 ];
 
+const workflowSteps = [
+  {
+    title: 'Build requests faster',
+    description: 'Create requests with smart defaults, auth presets, and reusable collections in seconds.',
+  },
+  {
+    title: 'Inspect responses clearly',
+    description: 'Review headers, status, timing, and body output in one focused response workspace.',
+  },
+  {
+    title: 'Scale confidence',
+    description: 'Stress test APIs with parallel runs and share generated fetch scripts with your team.',
+  },
+];
+
 const Home = () => {
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -45,11 +60,11 @@ const Home = () => {
 
             <div className="space-y-4">
               <h1 className="max-w-4xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl lg:text-5xl">
-                Reqwise helps teams design, test, and automate APIs with a clean, responsive workflow.
+                A modern API workspace that helps your team build, validate, and monitor endpoints with confidence.
               </h1>
               <p className="max-w-3xl text-sm text-muted-foreground sm:text-base">
-                Launch into Reqwise from this home page and run everything from one polished interface: request editing, history analysis,
-                response inspection, load tests, and scheduled execution.
+                Reqwise combines the speed of a developer-first tool with the clarity of a polished product experience. From quick debugging
+                to load-test validation, your full workflow lives in one elegant interface.
               </p>
             </div>
 
@@ -84,6 +99,19 @@ const Home = () => {
         </section>
 
         <section className="grid gap-4 rounded-2xl border border-border bg-card/50 p-6 md:grid-cols-3 md:p-8">
+          {workflowSteps.map((step) => (
+            <div key={step.title} className="space-y-2 rounded-xl border border-border/70 bg-background/50 p-4">
+              <div className="flex items-center gap-2 text-primary">
+                <CheckCircle2 className="h-4 w-4" />
+                <p className="text-xs font-medium uppercase tracking-wider">Workflow</p>
+              </div>
+              <h2 className="text-base font-semibold">{step.title}</h2>
+              <p className="text-sm text-muted-foreground">{step.description}</p>
+            </div>
+          ))}
+        </section>
+
+        <section className="grid gap-4 rounded-2xl border border-border bg-card/50 p-6 md:grid-cols-3 md:p-8">
           <div>
             <h2 className="text-xl font-semibold">Why Reqwise</h2>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -104,6 +132,25 @@ const Home = () => {
               <Command className="mt-0.5 h-4 w-4 text-primary" />
               <p className="text-sm text-muted-foreground">Navigate requests quickly with keyboard-first search and editing controls.</p>
             </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-primary/25 bg-primary/5 p-6 md:p-8">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="mb-2 inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.2em] text-primary">
+                <Sparkles className="h-4 w-4" />
+                Ready to start?
+              </p>
+              <h2 className="text-2xl font-semibold tracking-tight">Open the Reqwise tool and launch your next API test flow.</h2>
+              <p className="mt-2 text-sm text-muted-foreground">You can always return to this page from inside the tool using the Home button.</p>
+            </div>
+            <Button asChild size="lg" className="md:min-w-48">
+              <Link to="/reqwise">
+                Launch workspace
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
           </div>
         </section>
       </div>
