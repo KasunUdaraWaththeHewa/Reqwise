@@ -1,12 +1,16 @@
 import type { EnvVariable, Response, TestAssertion, TestResult } from '../store/apiStore';
 
-export function interpolateTemplate(value: string, variables: Record<string, string>) {
+export function interpolateTemplate(value: unknown, variables: Record<string, string>) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
   return value.replace(/{{\s*([\w.-]+)\s*}}/g, (_, key: string) => variables[key] ?? '');
 }
 
 export function toVariableMap(...scopes: EnvVariable[][]): Record<string, string> {
   return scopes.reduce<Record<string, string>>((acc, scope) => {
-    scope
+    (scope ?? [])
       .filter((variable) => variable.enabled && variable.key)
       .forEach((variable) => {
         acc[variable.key] = variable.value;
